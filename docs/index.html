@@ -2,11 +2,732 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>forge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge</title>
+<style>
+/* Base light-mode rule. Light variables and body background/color live here FIRST. */
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #fbfbfd;
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+  --border: #e3e3e6;
+  --accent: #0071e3;
+  --accent-soft: rgba(0, 113, 227, 0.12);
+  --good: #1a8a45;
+  --good-bg: rgba(26, 138, 69, 0.12);
+  --bad: #cc2b2b;
+  --bad-bg: rgba(204, 43, 43, 0.12);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.05);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==== DARK OVERRIDE BLOCK: comes AFTER base body{}; re-declares variables AND body bg + color ==== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #161618;
+    --text: #f5f5f7;
+    --text-muted: #98989d;
+    --border: #2c2c2e;
+    --accent: #2997ff;
+    --accent-soft: rgba(41, 151, 255, 0.16);
+    --good: #35c759;
+    --good-bg: rgba(53, 199, 89, 0.16);
+    --bad: #ff453a;
+    --bad-bg: rgba(255, 69, 58, 0.16);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+  }
+}
+
+.wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+header.hero {
+  text-align: center;
+  padding: 80px 24px 56px;
+}
+header.hero h1 {
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+  background: linear-gradient(180deg, var(--text), var(--text-muted));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+header.hero p {
+  font-size: 21px;
+  color: var(--text-muted);
+  margin: 0 auto;
+  max-width: 620px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+  margin: 0 0 28px;
+}
+.card h2 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+.card h2 + .sub {
+  color: var(--text-muted);
+  margin: 0 0 22px;
+  font-size: 15px;
+}
+canvas#stage {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  touch-action: none;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0 4px;
+  align-items: center;
+}
+button {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 980px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.05s ease;
+}
+button:hover { opacity: 0.88; }
+button:active { transform: scale(0.97); }
+button.secondary {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.field label { white-space: nowrap; }
+input[type="number"], input[type="text"] {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  width: 96px;
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  width: 150px;
+}
+input:focus, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+.readout {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.readout .k {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.readout .v {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  word-break: break-all;
+}
+.proof {
+  margin-top: 24px;
+  padding: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.proof-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.proof-cell .k {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.proof-cell .v {
+  font-family: var(--mono);
+  font-size: 15px;
+  word-break: break-all;
+}
+.verdict {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 8px 16px;
+  border-radius: 980px;
+}
+.verdict.match { color: var(--good); background: var(--good-bg); }
+.verdict.mismatch { color: var(--bad); background: var(--bad-bg); }
+.verdict.idle { color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); }
+ol.guide { padding-left: 22px; margin: 0; }
+ol.guide li { margin-bottom: 12px; }
+dl.howto { margin: 0; }
+dl.howto dt {
+  font-weight: 600;
+  margin-top: 16px;
+}
+dl.howto dd {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+.section-title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+p.lede { color: var(--text-muted); font-size: 16px; }
+footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 40px 24px 0;
+}
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+@media (max-width: 560px) {
+  header.hero h1 { font-size: 44px; }
+  header.hero p { font-size: 18px; }
+  .proof-grid { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
-<h1>forge</h1>
-<p>Site coming soon.</p>
-<p><a href="https://github.com/pavanchow/forge">View repository</a></p>
+<header class="hero">
+  <h1>Forge</h1>
+  <p>A deterministic, headless-testable 2D game engine where the same seed always replays the exact same world.</p>
+</header>
+
+<main class="wrap">
+
+  <section class="card">
+    <h2>Live playground</h2>
+    <p class="sub">A from-scratch JavaScript mirror of Forge's ECS and fixed-timestep physics running in your browser.</p>
+
+    <canvas id="stage" width="960" height="540"></canvas>
+
+    <div class="controls">
+      <button id="btnStart" class="">Start</button>
+      <button id="btnStep" class="secondary">Step once</button>
+      <button id="btnReplay" class="secondary">Replay from seed</button>
+      <button id="btnSpawn" class="secondary">Spawn 10</button>
+      <button id="btnReset" class="ghost">Reset</button>
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label for="seedInput">Seed</label>
+        <input type="text" id="seedInput" value="42">
+      </div>
+      <div class="field">
+        <label for="countInput">Entities</label>
+        <input type="number" id="countInput" value="24" min="1" max="200">
+      </div>
+      <div class="field">
+        <label for="gravitySlider">Gravity</label>
+        <input type="range" id="gravitySlider" min="0" max="2400" step="50" value="900">
+        <span id="gravityVal" class="v" style="font-family:var(--mono);font-size:14px;">900</span>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="readout"><div class="k">FPS</div><div class="v" id="roFps">0</div></div>
+      <div class="readout"><div class="k">Entities</div><div class="v" id="roCount">0</div></div>
+      <div class="readout"><div class="k">Step</div><div class="v" id="roStep">0</div></div>
+      <div class="readout"><div class="k">World-state hash</div><div class="v" id="roHash">00000000</div></div>
+    </div>
+
+    <div class="proof">
+      <div class="section-title">Determinism proof</div>
+      <p class="lede" style="margin-top:0">Run the world to step K, record the hash, reset from the same seed, run to step K again. The two hashes must match to the last digit.</p>
+      <div class="controls">
+        <div class="field">
+          <label for="proofSteps">Steps (K)</label>
+          <input type="number" id="proofSteps" value="600" min="1" max="20000">
+        </div>
+        <button id="btnProof">Run proof</button>
+      </div>
+      <div class="proof-grid">
+        <div class="proof-cell">
+          <div class="k">Run A hash</div>
+          <div class="v" id="proofA">not run yet</div>
+        </div>
+        <div class="proof-cell">
+          <div class="k">Run B hash</div>
+          <div class="v" id="proofB">not run yet</div>
+        </div>
+      </div>
+      <span id="proofVerdict" class="verdict idle">Awaiting run</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>How to use this playground</h2>
+    <p class="sub">Every control explained, plus a short guided tour that shows what determinism means and why it matters.</p>
+
+    <div class="section-title">Guided tour</div>
+    <ol class="guide">
+      <li>Press <strong>Start</strong> to run the simulation. Balls fall under gravity, bounce off the walls, and collide with each other.</li>
+      <li>Watch the <strong>world-state hash</strong> readout. It is a fingerprint of every ball position and velocity, and it changes on every step.</li>
+      <li>Type a seed like <code>42</code> into the Seed box and press <strong>Replay from seed</strong>. The scene resets to the exact same starting layout.</li>
+      <li>Let it run to some step number, note the hash, then press <strong>Replay from seed</strong> again. At the same step you will see the same hash reappear. That is determinism: same seed plus same number of steps gives the identical world, every single time.</li>
+      <li>For hard proof press <strong>Run proof</strong>. It runs the world to step K, resets from the seed, runs to K again, and shows both hashes with a green MATCH badge.</li>
+    </ol>
+
+    <div class="section-title" style="margin-top:26px">What every control does</div>
+    <dl class="howto">
+      <dt>Start / Pause</dt>
+      <dd>Toggles the fixed-timestep loop. While paused the world holds its exact state.</dd>
+      <dt>Step once</dt>
+      <dd>Advances the simulation by a single fixed step. Handy for watching the hash change one step at a time.</dd>
+      <dt>Seed</dt>
+      <dd>The number that feeds the seeded random generator. The same seed produces the same starting positions, sizes, colors, and velocities.</dd>
+      <dt>Replay from seed</dt>
+      <dd>Rebuilds the world from the current seed and entity count, resetting the step counter to zero. This is the core determinism demo.</dd>
+      <dt>Spawn 10</dt>
+      <dd>Adds ten more balls, placed with the seeded generator so the additions stay reproducible.</dd>
+      <dt>Entities</dt>
+      <dd>How many balls a replay or reset creates. Change it, then press Replay from seed to apply.</dd>
+      <dt>Gravity</dt>
+      <dd>Downward acceleration in pixels per second squared. It applies live and also becomes part of the reproducible run.</dd>
+      <dt>Reset</dt>
+      <dd>Clears the world back to an empty, stopped state at step zero.</dd>
+      <dt>Run proof</dt>
+      <dd>The automated determinism check described in the tour. MATCH means the engine is deterministic for this seed and step count.</dd>
+    </dl>
+
+    <div class="section-title" style="margin-top:26px">Why determinism matters</div>
+    <p class="lede">A deterministic engine replays a run exactly from a seed and a step count, so a bug that appears at step 4000 can be reproduced on demand instead of chased by luck. It makes the simulation headless-testable, because a test can step the world and assert on a single hash rather than eyeballing pixels. It also keeps the simulation frame-rate independent, since the fixed-timestep accumulator steps the same slices whether your machine runs at 30 or 144 frames per second.</p>
+  </section>
+
+  <section class="card">
+    <h2>What is running under the hood</h2>
+    <p class="sub">The same ideas the Rust engine is built on, reimplemented here for teaching.</p>
+    <dl class="howto">
+      <dt>Seeded PRNG</dt>
+      <dd>A SplitMix64 generator using 64-bit BigInt math. The same seed yields the identical sequence, so scene generation is reproducible.</dd>
+      <dt>Tiny ECS</dt>
+      <dd>Entities are integer ids. Positions, velocities, radii, and colors are parallel component arrays indexed by id. Systems iterate strictly in id order so results never depend on iteration luck.</dd>
+      <dt>Fixed-timestep loop</dt>
+      <dd>Real frame time feeds an accumulator that is drained in fixed <code>dt = 1/120</code> second slices, so the physics is frame-rate independent.</dd>
+      <dt>Semi-implicit Euler physics</dt>
+      <dd>Each step applies <code>v += gravity * dt</code> then <code>pos += v * dt</code>, with wall bounds and restitution.</dd>
+      <dt>Circle collision</dt>
+      <dd>Pairwise circle-circle detection with positional correction and an impulse response, resolved in deterministic id order.</dd>
+      <dt>World-state hash</dt>
+      <dd>After every step, all positions and velocities are quantized to fixed integers and folded with FNV-1a into a stable 32-bit fingerprint.</dd>
+    </dl>
+  </section>
+
+</main>
+
+<footer>
+  <p>Forge is open source. View the code and engine at <a href="https://github.com/pavanchow/forge">github.com/pavanchow/forge</a></p>
+</footer>
+
+<script>
+"use strict";
+(function () {
+  // ---------- Seeded PRNG: SplitMix64 using BigInt for true 64-bit math ----------
+  const MASK64 = (1n << 64n) - 1n;
+  function makeRng(seedBig) {
+    let state = seedBig & MASK64;
+    function nextU64() {
+      state = (state + 0x9E3779B97F4A7C15n) & MASK64;
+      let z = state;
+      z = ((z ^ (z >> 30n)) * 0xBF58476D1CE4E5B9n) & MASK64;
+      z = ((z ^ (z >> 27n)) * 0x94D049BB133111EBn) & MASK64;
+      z = z ^ (z >> 31n);
+      return z & MASK64;
+    }
+    return {
+      // float in [0, 1) from the top 53 bits, deterministic
+      nextFloat() {
+        const v = nextU64() >> 11n;
+        return Number(v) / 9007199254740992;
+      },
+      range(lo, hi) {
+        return lo + (hi - lo) * this.nextFloat();
+      }
+    };
+  }
+  function seedToBig(text) {
+    const t = String(text).trim();
+    if (/^\d+$/.test(t)) {
+      return BigInt(t) & MASK64;
+    }
+    // hash arbitrary text into a 64-bit seed deterministically
+    let h = 1469598103934665603n; // FNV offset basis 64
+    for (let i = 0; i < t.length; i++) {
+      h = (h ^ BigInt(t.charCodeAt(i))) & MASK64;
+      h = (h * 1099511628211n) & MASK64; // FNV prime 64
+    }
+    return h === 0n ? 1n : h;
+  }
+
+  // ---------- World: a tiny ECS with parallel component arrays ----------
+  const W = 960, H = 540;
+  const REST = 0.86;      // wall restitution
+  const PAIR_REST = 0.92; // ball-to-ball restitution
+  const DT = 1 / 120;     // fixed timestep in seconds
+
+  const PALETTE = [
+    "#0071e3", "#34c759", "#ff9f0a", "#ff375f",
+    "#bf5af2", "#5ac8fa", "#ffd60a", "#30d158"
+  ];
+
+  const world = {
+    px: [], py: [], vx: [], vy: [], r: [], color: [],
+    count: 0,
+    step: 0,
+    gravity: 900,
+    seedText: "42"
+  };
+
+  function clearWorld() {
+    world.px.length = 0; world.py.length = 0;
+    world.vx.length = 0; world.vy.length = 0;
+    world.r.length = 0; world.color.length = 0;
+    world.count = 0;
+    world.step = 0;
+  }
+
+  function spawnSeeded(rng, n) {
+    for (let i = 0; i < n; i++) {
+      const rad = rng.range(10, 26);
+      world.px.push(rng.range(rad, W - rad));
+      world.py.push(rng.range(rad, H * 0.55));
+      world.vx.push(rng.range(-120, 120));
+      world.vy.push(rng.range(-60, 60));
+      world.r.push(rad);
+      const ci = Math.floor(rng.range(0, PALETTE.length)) % PALETTE.length;
+      world.color.push(PALETTE[ci]);
+      world.count++;
+    }
+  }
+
+  function buildFromSeed(seedText, n, gravity) {
+    clearWorld();
+    world.seedText = seedText;
+    world.gravity = gravity;
+    const rng = makeRng(seedToBig(seedText));
+    spawnSeeded(rng, n);
+  }
+
+  // ---------- Physics: semi-implicit Euler + deterministic collision ----------
+  function fixedStep() {
+    const g = world.gravity;
+    const n = world.count;
+    // integrate in id order
+    for (let i = 0; i < n; i++) {
+      world.vy[i] += g * DT;
+      world.px[i] += world.vx[i] * DT;
+      world.py[i] += world.vy[i] * DT;
+    }
+    // walls
+    for (let i = 0; i < n; i++) {
+      const rad = world.r[i];
+      if (world.px[i] - rad < 0) { world.px[i] = rad; world.vx[i] = -world.vx[i] * REST; }
+      else if (world.px[i] + rad > W) { world.px[i] = W - rad; world.vx[i] = -world.vx[i] * REST; }
+      if (world.py[i] - rad < 0) { world.py[i] = rad; world.vy[i] = -world.vy[i] * REST; }
+      else if (world.py[i] + rad > H) { world.py[i] = H - rad; world.vy[i] = -world.vy[i] * REST; }
+    }
+    // pairwise circle-circle, deterministic i<j order
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let dx = world.px[j] - world.px[i];
+        let dy = world.py[j] - world.py[i];
+        const minD = world.r[i] + world.r[j];
+        let dist2 = dx * dx + dy * dy;
+        if (dist2 >= minD * minD) continue;
+        let dist = Math.sqrt(dist2);
+        // avoid divide by zero deterministically
+        let nx, ny;
+        if (dist === 0) { nx = 1; ny = 0; dist = 0.0001; }
+        else { nx = dx / dist; ny = dy / dist; }
+        const overlap = minD - dist;
+        // positional correction, split evenly (equal mass)
+        const half = overlap * 0.5;
+        world.px[i] -= nx * half; world.py[i] -= ny * half;
+        world.px[j] += nx * half; world.py[j] += ny * half;
+        // relative velocity along normal
+        const rvx = world.vx[j] - world.vx[i];
+        const rvy = world.vy[j] - world.vy[i];
+        const velN = rvx * nx + rvy * ny;
+        if (velN > 0) continue; // separating already
+        const imp = -(1 + PAIR_REST) * velN * 0.5;
+        world.vx[i] -= imp * nx; world.vy[i] -= imp * ny;
+        world.vx[j] += imp * nx; world.vy[j] += imp * ny;
+      }
+    }
+    world.step++;
+  }
+
+  // ---------- World-state hash: FNV-1a over quantized dump ----------
+  function quant(x) {
+    // round to fixed precision then wrap to unsigned 32-bit
+    return (Math.round(x * 1000) >>> 0);
+  }
+  function worldHash() {
+    let h = 0x811c9dc5 >>> 0; // FNV offset basis 32
+    const FNV = 0x01000193;
+    function fold(u) {
+      // fold a 32-bit unsigned across 4 bytes
+      for (let b = 0; b < 4; b++) {
+        const byte = (u >>> (b * 8)) & 0xff;
+        h = (h ^ byte) >>> 0;
+        h = Math.imul(h, FNV) >>> 0;
+      }
+    }
+    fold(world.count >>> 0);
+    for (let i = 0; i < world.count; i++) {
+      fold(quant(world.px[i]));
+      fold(quant(world.py[i]));
+      fold(quant(world.vx[i]));
+      fold(quant(world.vy[i]));
+    }
+    return ("00000000" + h.toString(16)).slice(-8);
+  }
+
+  // ---------- Rendering ----------
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < world.count; i++) {
+      ctx.beginPath();
+      ctx.arc(world.px[i], world.py[i], world.r[i], 0, Math.PI * 2);
+      ctx.fillStyle = world.color[i];
+      ctx.globalAlpha = 0.92;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---------- Fixed-timestep loop with accumulator ----------
+  let running = false;
+  let accumulator = 0;
+  let lastTime = 0;
+  let fpsEma = 0;
+  let rafId = 0;
+
+  function frame(now) {
+    rafId = requestAnimationFrame(frame);
+    if (lastTime === 0) lastTime = now;
+    let dtReal = (now - lastTime) / 1000;
+    lastTime = now;
+    if (dtReal > 0.25) dtReal = 0.25; // clamp huge gaps (tab switch)
+    if (dtReal > 0) {
+      const instFps = 1 / dtReal;
+      fpsEma = fpsEma === 0 ? instFps : fpsEma * 0.9 + instFps * 0.1;
+    }
+    if (running) {
+      accumulator += dtReal;
+      let guard = 0;
+      while (accumulator >= DT && guard < 600) {
+        fixedStep();
+        accumulator -= DT;
+        guard++;
+      }
+    }
+    render();
+    updateReadouts();
+  }
+
+  // ---------- Readouts ----------
+  const roFps = document.getElementById("roFps");
+  const roCount = document.getElementById("roCount");
+  const roStep = document.getElementById("roStep");
+  const roHash = document.getElementById("roHash");
+  function updateReadouts() {
+    roFps.textContent = String(Math.round(fpsEma));
+    roCount.textContent = String(world.count);
+    roStep.textContent = String(world.step);
+    roHash.textContent = worldHash();
+  }
+
+  // ---------- Controls ----------
+  const btnStart = document.getElementById("btnStart");
+  const btnStep = document.getElementById("btnStep");
+  const btnReplay = document.getElementById("btnReplay");
+  const btnSpawn = document.getElementById("btnSpawn");
+  const btnReset = document.getElementById("btnReset");
+  const seedInput = document.getElementById("seedInput");
+  const countInput = document.getElementById("countInput");
+  const gravitySlider = document.getElementById("gravitySlider");
+  const gravityVal = document.getElementById("gravityVal");
+
+  function readCount() {
+    let n = parseInt(countInput.value, 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > 200) n = 200;
+    return n;
+  }
+
+  btnStart.addEventListener("click", function () {
+    running = !running;
+    btnStart.textContent = running ? "Pause" : "Start";
+  });
+  btnStep.addEventListener("click", function () {
+    fixedStep();
+    render();
+    updateReadouts();
+  });
+  btnReplay.addEventListener("click", function () {
+    buildFromSeed(seedInput.value, readCount(), Number(gravitySlider.value));
+    accumulator = 0;
+    render();
+    updateReadouts();
+  });
+  btnSpawn.addEventListener("click", function () {
+    // seed the additions off current seed + current count for reproducibility
+    const rng = makeRng(seedToBig(seedInput.value + ":" + world.count));
+    spawnSeeded(rng, 10);
+    countInput.value = String(world.count);
+    render();
+    updateReadouts();
+  });
+  btnReset.addEventListener("click", function () {
+    running = false;
+    btnStart.textContent = "Start";
+    clearWorld();
+    accumulator = 0;
+    render();
+    updateReadouts();
+  });
+  gravitySlider.addEventListener("input", function () {
+    world.gravity = Number(gravitySlider.value);
+    gravityVal.textContent = gravitySlider.value;
+  });
+
+  // ---------- Determinism proof ----------
+  const proofSteps = document.getElementById("proofSteps");
+  const btnProof = document.getElementById("btnProof");
+  const proofA = document.getElementById("proofA");
+  const proofB = document.getElementById("proofB");
+  const proofVerdict = document.getElementById("proofVerdict");
+
+  function runHeadless(seedText, n, gravity, k) {
+    // run a private world without touching the visible one
+    const saved = {
+      px: world.px.slice(), py: world.py.slice(),
+      vx: world.vx.slice(), vy: world.vy.slice(),
+      r: world.r.slice(), color: world.color.slice(),
+      count: world.count, step: world.step, gravity: world.gravity, seedText: world.seedText
+    };
+    buildFromSeed(seedText, n, gravity);
+    for (let s = 0; s < k; s++) fixedStep();
+    const hash = worldHash();
+    // restore visible world exactly
+    world.px = saved.px; world.py = saved.py;
+    world.vx = saved.vx; world.vy = saved.vy;
+    world.r = saved.r; world.color = saved.color;
+    world.count = saved.count; world.step = saved.step;
+    world.gravity = saved.gravity; world.seedText = saved.seedText;
+    return hash;
+  }
+
+  btnProof.addEventListener("click", function () {
+    let k = parseInt(proofSteps.value, 10);
+    if (!Number.isFinite(k) || k < 1) k = 1;
+    if (k > 20000) k = 20000;
+    const n = readCount();
+    const g = Number(gravitySlider.value);
+    const s = seedInput.value;
+    const hA = runHeadless(s, n, g, k);
+    const hB = runHeadless(s, n, g, k);
+    proofA.textContent = hA;
+    proofB.textContent = hB;
+    if (hA === hB) {
+      proofVerdict.textContent = "MATCH · deterministic at step " + k;
+      proofVerdict.className = "verdict match";
+    } else {
+      proofVerdict.textContent = "MISMATCH · non-deterministic";
+      proofVerdict.className = "verdict mismatch";
+    }
+  });
+
+  // ---------- Boot ----------
+  buildFromSeed(seedInput.value, readCount(), Number(gravitySlider.value));
+  gravityVal.textContent = gravitySlider.value;
+  render();
+  updateReadouts();
+  rafId = requestAnimationFrame(frame);
+})();
+</script>
 </body>
 </html>
