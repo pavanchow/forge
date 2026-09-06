@@ -95,11 +95,14 @@ continuous check folded into movement.
 
 Narrowphase tests two shapes and returns a manifold, a unit normal pointing from
 the first body to the second and a non-negative penetration depth. It covers
-every pairing of axis-aligned boxes and circles. Bodies with non-finite centers
-or extents collide with nothing. There is no meaningful manifold at infinity, a
-NaN manifold would silently poison resolution, and non-finite geometry can only
+every pairing of axis-aligned boxes and circles. Bodies with non-finite centers,
+non-finite extents, or negative extents collide with nothing. There is no
+meaningful manifold at infinity, a NaN manifold would silently poison
+resolution, an inverted box is not a shape at all, and such geometry can only
 enter through caller error or corruption, so the case is rejected before any
-arithmetic that could propagate it.
+arithmetic that could panic or propagate it. For the same reason the simulation
+spawns neutralize non-finite arguments to zero at the boundary, so caller error
+never reaches world state in the first place.
 
 Broadphase is a uniform spatial grid. Each body is inserted into every grid cell
 its bounding box touches, then bodies that share a cell become candidate pairs.
@@ -134,6 +137,17 @@ using the slab method. If the ray hits within the step, the body is advanced onl
 to the time of impact and its velocity along the surface normal is cancelled. Fast
 bodies therefore stop at the wall instead of passing through it.
 
+The swept test has one deliberate blind spot. When the mover already overlaps the
+static before moving, the time of impact is in the past, the test returns nothing,
+and the contact is handed to discrete resolution. A body that ends up inside a
+wall anyway, pushed in by a pile or spawned there by a caller, could otherwise
+cross the entire wall on its next step at extreme speed, because the sweep would
+never see it. The movement phase therefore checks every dynamic body against the
+statics it currently touches, in deterministic index order, and cancels the
+inward component of its velocity before the displacement is computed. The
+depenetration is then left to positional correction, and the escape hatch that
+pre-existing overlap once offered is closed.
+
 ## Serialization and hashing
 
 Serialization defines a canonical byte layout for the whole world, the entity
@@ -151,8 +165,14 @@ with an end-of-input error instead of overflowing an index. The entity free
 list is validated on read, every entry must point at an existing dead slot and
 appear at most once, because an out-of-range entry would panic a later spawn
 and a duplicate would alias two entities onto one handle. The timestep enforces
-its positive-dt invariant on read, not just in its constructor. Rejection is
-always an error value, never a panic.
+its positive-dt invariant on read, not just in its constructor. Gravity is
+required to be finite on read because it multiplies into every dynamic body
+each step, so a single NaN there would poison the whole world. A rigid body is
+required to carry a non-negative finite inverse mass and a finite restitution,
+because either reaching a live contact would multiply a NaN straight into
+another body's velocity. Each of these is a value a valid encoder never writes,
+so a stream carrying one is corruption, not state, and rejection is always an
+error value, never a panic.
 
 ## Rollback netcode snapshots
 
@@ -204,7 +224,15 @@ the geometric edges of the broadphase oracle. Non-finite geometry asserts the
 narrowphase rejects it and the grid stays bounded. A corrupted-stream test
 flips every byte of a real snapshot and requires each mutation to decode to Ok
 or Err and never panic, with any Ok result still stepping and hashing safely.
-Hand-crafted free lists and timesteps verify the read-side validation directly.
+Beyond the never-panic floor, streams carrying values a valid encoder never
+writes, non-finite gravity and corrupt rigid-body fields, must be rejected
+outright. Scripted non-finite input, a NaN gravity command, non-finite spawn
+arguments and impulses, must be neutralized so the world stays finite and two
+identical runs still hash identically. A ball spawned inside a wall with a huge
+inward velocity must stay contained, which pins the pre-overlap guard. Hand-
+crafted free lists and timesteps verify the read-side validation directly.
+Mutation while a query snapshot is being consumed, despawn plus respawn into a
+reused index mid-pass, must leave the world index-ordered and byte-stable.
 Empty-world hash stability, multi-generation restore chains, corner contacts
 with two simultaneous walls, and mass spawn and despawn churn verify that
 degenerate but legal worlds stay deterministic and finite.

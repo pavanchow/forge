@@ -100,7 +100,9 @@ checkpointed containment and restore soaks.
    deserializing it yields an equal world, and continuing the simulation from
    the restored world matches continuing the original bit for bit. Checkpoint
    round trips at many mid-run ticks stay aligned, and truncated or corrupted
-   input is rejected as an error, never a panic.
+   input is rejected as an error, never a panic. Streams carrying values a
+   valid encoder never writes, such as non-finite gravity or corrupt rigid
+   body fields, are rejected outright.
 3. Collision correctness (`tests/collision.rs`). The broadphase plus narrowphase
    overlap set exactly matches a brute-force reference over many random entity
    sets, and the resolver stops fast bodies from tunneling through thin static
@@ -111,7 +113,10 @@ checkpointed containment and restore soaks.
    bodies, bodies exactly on cell boundaries, non-finite geometry, corner
    contacts with two simultaneous walls, empty-world hash stability, restore
    chains across generations, and mass spawn and despawn churn all stay
-   deterministic, bounded, and free of NaN or infinity.
+   deterministic, bounded, and free of NaN or infinity. Non-finite script
+   inputs are neutralized at the boundary, a ball spawned inside a wall stays
+   contained, and the world stays byte-stable when entities despawn and respawn
+   while a query snapshot is being consumed.
 5. Rollback reproduction (`tests/rollback.rs`). Rolling back to a recorded tick
    and replaying forward with the same inputs reproduces the original final
    hash exactly. Replaying with different inputs diverges, and the divergence
