@@ -66,10 +66,18 @@ impl ByteIo for FixedTimestep {
         self.max_steps.write(out);
     }
     fn read(cur: &mut Cursor) -> Result<Self, DecodeError> {
+        let dt = f64::read(cur)?;
+        let accumulator = f64::read(cur)?;
+        let max_steps = u32::read(cur)?;
+        // `new` guarantees a positive finite dt and max_steps >= 1; a restored
+        // timestep must satisfy the same invariant or the stream is corrupt.
+        if !dt.is_finite() || dt <= 0.0 || max_steps == 0 {
+            return Err(DecodeError::BadLayout);
+        }
         Ok(FixedTimestep {
-            dt: f64::read(cur)?,
-            accumulator: f64::read(cur)?,
-            max_steps: u32::read(cur)?,
+            dt,
+            accumulator,
+            max_steps,
         })
     }
 }

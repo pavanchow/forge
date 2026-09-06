@@ -34,6 +34,15 @@ impl BodyView {
     }
 }
 
+fn is_finite_view(b: &BodyView) -> bool {
+    b.center.x.is_finite()
+        && b.center.y.is_finite()
+        && match b.shape {
+            Shape::Aabb { half } => half.x.is_finite() && half.y.is_finite(),
+            Shape::Circle { radius } => radius.is_finite(),
+        }
+}
+
 fn aabb_vs_aabb(ca: Vec2, ha: Vec2, cb: Vec2, hb: Vec2) -> Option<Manifold> {
     let d = cb - ca;
     let ox = ha.x + hb.x - d.x.abs();
@@ -120,7 +129,14 @@ fn aabb_vs_circle(ca: Vec2, ha: Vec2, cc: Vec2, r: f64) -> Option<Manifold> {
 
 /// Narrowphase test between two bodies. Returns the contact manifold with the
 /// normal pointing from `a` toward `b`, or `None` if they do not overlap.
+///
+/// Bodies with non-finite centers or extents collide with nothing. There is no
+/// meaningful manifold at infinity, and a NaN manifold would poison resolution,
+/// so the case is rejected before any arithmetic that could propagate it.
 pub fn collide(a: &BodyView, b: &BodyView) -> Option<Manifold> {
+    if !is_finite_view(a) || !is_finite_view(b) {
+        return None;
+    }
     match (a.shape, b.shape) {
         (Shape::Aabb { half: ha }, Shape::Aabb { half: hb }) => {
             aabb_vs_aabb(a.center, ha, b.center, hb)
@@ -155,21 +171,45 @@ pub fn brute_force_pairs(bodies: &[BodyView]) -> HashSet<(usize, usize)> {
     out
 }
 
+/// Upper bound on how many grid cells one body may span per axis before it is
+/// treated as giant and simply paired against every other body. A body this
+/// large overlaps a huge fraction of the world anyway, so the fallback keeps
+/// the candidate set a superset while bounding the loop.
+const MAX_CELLS_PER_AXIS: i64 = 1 << 20;
+
 /// Uniform-grid broadphase. Returns candidate index pairs (i < j), deduplicated.
 /// Every overlapping pair is guaranteed to appear because a body is inserted
 /// into every cell its bounding box touches.
+///
+/// Pathological bounds stay correct and bounded: a body with non-finite bounds
+/// produces no candidates (narrowphase rejects non-finite geometry too), and a
+/// finite body whose cell span exceeds [`MAX_CELLS_PER_AXIS`] per axis is paired
+/// against everything instead of walking an unbounded cell range.
 pub fn broadphase_pairs(bodies: &[BodyView], cell_size: f64) -> Vec<(usize, usize)> {
     use std::collections::HashMap;
     let cell = if cell_size > 0.0 { cell_size } else { 1.0 };
     let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
     let coord = |v: f64| (v / cell).floor() as i64;
+    let mut giants: Vec<usize> = Vec::new();
 
     for (i, b) in bodies.iter().enumerate() {
         let h = b.bounds_half();
         let min = b.center - h;
         let max = b.center + h;
+        if !(min.x.is_finite()
+            && min.y.is_finite()
+            && max.x.is_finite()
+            && max.y.is_finite())
+        {
+            continue;
+        }
         let (x0, x1) = (coord(min.x), coord(max.x));
         let (y0, y1) = (coord(min.y), coord(max.y));
+        if x1.saturating_sub(x0) > MAX_CELLS_PER_AXIS || y1.saturating_sub(y0) > MAX_CELLS_PER_AXIS
+        {
+            giants.push(i);
+            continue;
+        }
         for cx in x0..=x1 {
             for cy in y0..=y1 {
                 grid.entry((cx, cy)).or_default().push(i);
@@ -183,6 +223,13 @@ pub fn broadphase_pairs(bodies: &[BodyView], cell_size: f64) -> Vec<(usize, usiz
             for b in (a + 1)..members.len() {
                 let (i, j) = (members[a], members[b]);
                 pairs.insert(if i < j { (i, j) } else { (j, i) });
+            }
+        }
+    }
+    for g in giants {
+        for j in 0..bodies.len() {
+            if j != g {
+                pairs.insert(if g < j { (g, j) } else { (j, g) });
             }
         }
     }

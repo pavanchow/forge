@@ -286,6 +286,24 @@ impl World {
         self.store::<T>().present()
     }
 
+    /// A free-list entry must point at an existing dead slot and appear at most
+    /// once. Anything else would corrupt [`World::spawn`] (an out-of-range
+    /// index panics, duplicates alias two entities onto one handle), so
+    /// deserialize rejects the stream instead of trusting it.
+    fn validate_free_list(slots: &[Slot], free: &[u32]) -> Result<(), DecodeError> {
+        let mut seen = vec![false; slots.len()];
+        for &index in free {
+            let slot = slots
+                .get(index as usize)
+                .ok_or(DecodeError::BadLayout)?;
+            if slot.alive || seen[index as usize] {
+                return Err(DecodeError::BadLayout);
+            }
+            seen[index as usize] = true;
+        }
+        Ok(())
+    }
+
     /// Serialize the entity table and every registered component storage, in
     /// registration order.
     pub fn serialize(&self, out: &mut Vec<u8>) {
@@ -315,6 +333,7 @@ impl World {
         }
         self.slots = slots;
         self.free = Vec::<u32>::read(cur)?;
+        Self::validate_free_list(&self.slots, &self.free)?;
         let count = u64::read(cur)? as usize;
         if count != self.order.len() {
             return Err(DecodeError::BadLayout);

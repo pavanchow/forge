@@ -21,11 +21,14 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
-        if self.pos + n > self.data.len() {
+        // checked_add: a corrupt stream can declare a length near usize::MAX,
+        // and wrapping arithmetic would sail past the bounds check below.
+        let end = self.pos.checked_add(n).ok_or(DecodeError::UnexpectedEof)?;
+        if end > self.data.len() {
             return Err(DecodeError::UnexpectedEof);
         }
-        let out = &self.data[self.pos..self.pos + n];
-        self.pos += n;
+        let out = &self.data[self.pos..end];
+        self.pos = end;
         Ok(out)
     }
 }
