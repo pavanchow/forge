@@ -78,6 +78,16 @@ impl Vec2 {
         Vec2::new(self.x.abs(), self.y.abs())
     }
 
+    /// Every non-finite component becomes zero. Used at state boundaries so
+    /// caller error or corruption can never inject NaN or infinity into the
+    /// simulation, matching how narrowphase rejects non-finite geometry.
+    pub fn finite_or_zero(self) -> Vec2 {
+        Vec2::new(
+            if self.x.is_finite() { self.x } else { 0.0 },
+            if self.y.is_finite() { self.y } else { 0.0 },
+        )
+    }
+
     /// Linear interpolation. t is not clamped.
     pub fn lerp(self, o: Vec2, t: f64) -> Vec2 {
         self + (o - self) * t

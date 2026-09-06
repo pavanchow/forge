@@ -8,7 +8,7 @@
 //! bit-for-bit identically.
 
 use crate::collision::{self, BodyView};
-use crate::components::{Collider, Forces, RigidBody, Velocity};
+use crate::components::{Collider, Forces, RigidBody, Shape, Velocity};
 use crate::ecs::{Entity, World};
 use crate::hash::hash_bytes;
 use crate::math::{Transform, Vec2};
@@ -50,6 +50,18 @@ pub type ScriptEntry = (u64, Command);
 const POSITION_CORRECTION: f64 = 0.8;
 const PENETRATION_SLOP: f64 = 1e-4;
 
+/// Non-finite scalars collapse to zero at state boundaries. Non-finite values
+/// can only enter through caller error or corruption, and the engine's contract
+/// is to neutralize them (narrowphase rejects non-finite geometry the same way)
+/// rather than let a NaN reach the world hash.
+fn finite_or_zero_f(v: f64) -> f64 {
+    if v.is_finite() {
+        v
+    } else {
+        0.0
+    }
+}
+
 pub struct Simulation {
     pub world: World,
     pub rng: Rng,
@@ -89,7 +101,8 @@ impl Simulation {
         sim
     }
 
-    /// Spawn a dynamic circle body.
+    /// Spawn a dynamic circle body. Non-finite arguments are neutralized to
+    /// zero at this boundary.
     pub fn spawn_ball(
         &mut self,
         pos: Vec2,
@@ -99,20 +112,29 @@ impl Simulation {
         restitution: f64,
     ) -> Entity {
         let e = self.world.spawn();
-        self.world.insert(e, Transform::from_position(pos));
-        self.world.insert(e, Velocity(vel));
+        self.world
+            .insert(e, Transform::from_position(pos.finite_or_zero()));
+        self.world.insert(e, Velocity(vel.finite_or_zero()));
         self.world.insert(e, Forces(Vec2::ZERO));
-        self.world.insert(e, RigidBody::dynamic(mass, restitution));
-        self.world.insert(e, Collider::circle(radius));
+        self.world.insert(
+            e,
+            RigidBody::dynamic(finite_or_zero_f(mass), finite_or_zero_f(restitution)),
+        );
+        self.world
+            .insert(e, Collider::circle(finite_or_zero_f(radius)));
         e
     }
 
-    /// Spawn a static (immovable) axis-aligned box.
+    /// Spawn a static (immovable) axis-aligned box. Non-finite arguments are
+    /// neutralized to zero at this boundary.
     pub fn spawn_static_box(&mut self, center: Vec2, half: Vec2, restitution: f64) -> Entity {
         let e = self.world.spawn();
-        self.world.insert(e, Transform::from_position(center));
-        self.world.insert(e, RigidBody::fixed(restitution));
-        self.world.insert(e, Collider::aabb(half));
+        self.world
+            .insert(e, Transform::from_position(center.finite_or_zero()));
+        self.world
+            .insert(e, RigidBody::fixed(finite_or_zero_f(restitution)));
+        self.world
+            .insert(e, Collider::aabb(half.finite_or_zero()));
         e
     }
 
@@ -155,6 +177,7 @@ impl Simulation {
         match command {
             Command::SetGravity(g) => self.gravity = g,
             Command::Impulse { entity, delta_v } => {
+                let delta_v = delta_v.finite_or_zero();
                 if let Some(v) = self.world.get_mut::<Velocity>(entity) {
                     v.0 += delta_v;
                 }
@@ -225,17 +248,44 @@ impl Simulation {
             .collect();
 
         for e in dynamics {
-            let (pos, vel, moving_half, rest) = match (
+            let (pos, vel, moving_half, shape, rest) = match (
                 self.world.get::<Transform>(e),
                 self.world.get::<Velocity>(e),
                 self.world.get::<Collider>(e),
                 self.world.get::<RigidBody>(e),
             ) {
                 (Some(t), Some(v), Some(c), Some(rb)) => {
-                    (t.position, v.0, c.shape.bounds_half(), rb.restitution)
+                    (t.position, v.0, c.shape.bounds_half(), c.shape, rb.restitution)
                 }
                 _ => continue,
             };
+
+            // A body that already overlaps a static must not deepen the overlap
+            // with its own displacement. The swept test below skips pre-existing
+            // overlap by design (t_enter <= 0 hands the contact to discrete
+            // resolution), so without this guard a body pushed into a wall by a
+            // pile, or spawned inside one, crosses the whole wall on the next
+            // step at extreme speed. Cancel the inward velocity component
+            // against every static currently touching the body, in deterministic
+            // order, leaving tangential slide until positional correction
+            // depenetrates the contact.
+            let mut vel = vel;
+            for &(sc, sh, srest) in &statics {
+                let body = BodyView { center: pos, shape };
+                let stat = BodyView {
+                    center: sc,
+                    shape: Shape::Aabb { half: sh },
+                };
+                if let Some(m) = collision::collide(&body, &stat) {
+                    // The manifold normal points from the body toward the
+                    // static, so a positive component means still moving in.
+                    let vn = vel.dot(m.normal);
+                    if vn > 0.0 {
+                        let e_rest = rest.min(srest);
+                        vel -= m.normal * ((1.0 + e_rest) * vn);
+                    }
+                }
+            }
 
             let disp = vel * dt;
             let mut earliest: Option<(f64, Vec2, f64)> = None;

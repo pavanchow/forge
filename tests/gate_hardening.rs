@@ -257,6 +257,110 @@ fn bodies_on_cell_boundaries_match_oracle() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn ball_overlapping_a_wall_cannot_tunnel_through_it() {
+    // The swept test skips pre-existing overlap by design, so a body that ends
+    // up inside a wall (piled on by other bodies, or spawned there by a
+    // caller) must not deepen the overlap with its own displacement. Before
+    // the pre-overlap guard, a ball inside the bottom wall with a huge inward
+    // velocity crossed the whole wall on the next step.
+    let config = SimConfig::default();
+    let min = config.bounds_min;
+    let max = config.bounds_max;
+    let build = || {
+        let mut sim = Simulation::new(config, 5);
+        sim.add_walls(min, max, 5.0, 0.9);
+        // The bottom wall's center is (cx, min.y - 5) with half-height 5, so
+        // this ball starts fully inside the wall moving straight down fast.
+        sim.spawn_ball(
+            Vec2::new(50.0, min.y - 5.0),
+            Vec2::new(0.0, -3000.0),
+            1.0,
+            1.0,
+            0.8,
+        );
+        sim
+    };
+    let mut a = build();
+    let mut b = build();
+    a.run(400, &[]);
+    b.run(400, &[]);
+    assert_world_finite(&a);
+    assert_eq!(a.hash(), b.hash(), "pre-overlap escape must be deterministic");
+    for (e, _) in a.world.query::<Velocity>() {
+        let p = a.world.get::<Transform>(e).unwrap().position;
+        assert!(
+            p.y > min.y - 6.0 && p.y < max.y + 6.0,
+            "ball tunneled through the wall it started inside: {p:?}"
+        );
+    }
+}
+
+#[test]
+fn nonfinite_spawn_and_impulse_never_poison_the_world() {
+    // Non-finite values can only enter through caller error, and the engine's
+    // contract is that they are neutralized at the boundary, never propagated
+    // into world state or the hash.
+    let config = SimConfig::default();
+    let build = || {
+        let mut sim = Simulation::new(config, 9);
+        sim.add_walls(config.bounds_min, config.bounds_max, 5.0, 0.9);
+        sim.spawn_ball(
+            Vec2::new(f64::NAN, 50.0),
+            Vec2::new(f64::INFINITY, f64::NAN),
+            f64::NAN,
+            f64::INFINITY,
+            f64::NAN,
+        );
+        sim.spawn_ball(Vec2::new(30.0, 50.0), Vec2::new(5.0, 5.0), 1.5, 2.0, 0.8);
+        sim
+    };
+    let mut a = build();
+    let mut b = build();
+    let script: Vec<ScriptEntry> = vec![
+        (
+            10,
+            Command::Impulse {
+                entity: a.world.entities_with::<Velocity>()[1],
+                delta_v: Vec2::new(f64::NAN, f64::INFINITY),
+            },
+        ),
+        (
+            20,
+            Command::SpawnBall {
+                pos: Vec2::new(f64::INFINITY, f64::NAN),
+                vel: Vec2::new(f64::NAN, f64::NAN),
+                radius: f64::INFINITY,
+                mass: f64::NAN,
+                restitution: f64::INFINITY,
+            },
+        ),
+    ];
+    let script2 = vec![
+        (
+            10,
+            Command::Impulse {
+                entity: b.world.entities_with::<Velocity>()[1],
+                delta_v: Vec2::new(f64::NAN, f64::INFINITY),
+            },
+        ),
+        (
+            20,
+            Command::SpawnBall {
+                pos: Vec2::new(f64::INFINITY, f64::NAN),
+                vel: Vec2::new(f64::NAN, f64::NAN),
+                radius: f64::INFINITY,
+                mass: f64::NAN,
+                restitution: f64::INFINITY,
+            },
+        ),
+    ];
+    a.run(300, &script);
+    b.run(300, &script2);
+    assert_world_finite(&a);
+    assert_eq!(a.hash(), b.hash(), "non-finite input must be handled deterministically");
+}
+
+#[test]
 fn corner_slam_is_deterministic_and_contained() {
     // A ball fired into an exact corner where two walls meet: two simultaneous
     // contacts, resolved in a fixed order.

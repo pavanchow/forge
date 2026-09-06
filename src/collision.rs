@@ -34,13 +34,22 @@ impl BodyView {
     }
 }
 
-fn is_finite_view(b: &BodyView) -> bool {
-    b.center.x.is_finite()
-        && b.center.y.is_finite()
-        && match b.shape {
-            Shape::Aabb { half } => half.x.is_finite() && half.y.is_finite(),
-            Shape::Circle { radius } => radius.is_finite(),
+/// A body participates in collision only if its center is finite and its
+/// extents are finite and non-negative. Non-finite state must never propagate
+/// into a manifold, and an inverted (negative half-extent) box is not a body:
+/// the broadphase already skips it because its cell range iterates zero cells,
+/// so narrowphase and the sweep reject it too and all three entry points stay
+/// consistent.
+fn is_valid_view(b: &BodyView) -> bool {
+    if !b.center.x.is_finite() || !b.center.y.is_finite() {
+        return false;
+    }
+    match b.shape {
+        Shape::Aabb { half } => {
+            half.x.is_finite() && half.y.is_finite() && half.x >= 0.0 && half.y >= 0.0
         }
+        Shape::Circle { radius } => radius.is_finite() && radius >= 0.0,
+    }
 }
 
 fn aabb_vs_aabb(ca: Vec2, ha: Vec2, cb: Vec2, hb: Vec2) -> Option<Manifold> {
@@ -130,11 +139,13 @@ fn aabb_vs_circle(ca: Vec2, ha: Vec2, cc: Vec2, r: f64) -> Option<Manifold> {
 /// Narrowphase test between two bodies. Returns the contact manifold with the
 /// normal pointing from `a` toward `b`, or `None` if they do not overlap.
 ///
-/// Bodies with non-finite centers or extents collide with nothing. There is no
-/// meaningful manifold at infinity, and a NaN manifold would poison resolution,
-/// so the case is rejected before any arithmetic that could propagate it.
+/// Bodies with non-finite centers, non-finite extents, or negative extents
+/// collide with nothing. There is no meaningful manifold at infinity, a NaN
+/// manifold would poison resolution, and an inverted box is not a shape at
+/// all, so the case is rejected before any arithmetic that could panic or
+/// propagate it.
 pub fn collide(a: &BodyView, b: &BodyView) -> Option<Manifold> {
-    if !is_finite_view(a) || !is_finite_view(b) {
+    if !is_valid_view(a) || !is_valid_view(b) {
         return None;
     }
     match (a.shape, b.shape) {
@@ -261,6 +272,13 @@ pub fn swept_aabb(
     static_center: Vec2,
     static_half: Vec2,
 ) -> Option<(f64, Vec2)> {
+    // An inverted or non-finite box is not a body: narrowphase rejects it and
+    // the broadphase never emits it, so the sweep must not hit it either.
+    let valid = |v: Vec2| v.x.is_finite() && v.y.is_finite() && v.x >= 0.0 && v.y >= 0.0;
+    if !valid(half) || !valid(static_half) {
+        return None;
+    }
+
     // Minkowski-expand the static box by the moving half-extents, then treat the
     // moving box as a point (a ray from its center) against the expanded box.
     let bmin = static_center - (static_half + half);
