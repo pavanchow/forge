@@ -10,7 +10,7 @@
 //!   forge [--seed N] [--steps N] [--balls N]
 //!
 //! Environment (CLI flags take precedence):
-//!   FORGE_SEED, FORGE_STEPS, FORGE_BALLS, FORGE_FUZZ_OPS (alias for steps)
+//!   `FORGE_SEED`, `FORGE_STEPS`, `FORGE_BALLS`, `FORGE_FUZZ_OPS` (alias for steps)
 
 use forge::math::Vec2;
 use forge::sim::{Command, ScriptEntry, SimConfig, Simulation};
@@ -24,7 +24,9 @@ fn parse_args() -> (u64, u64, u32) {
     let mut steps = env_u64("FORGE_STEPS")
         .or_else(|| env_u64("FORGE_FUZZ_OPS"))
         .unwrap_or(600);
-    let mut balls = env_u64("FORGE_BALLS").unwrap_or(40) as u32;
+    let mut balls = env_u64("FORGE_BALLS")
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or(40);
 
     let args: Vec<String> = std::env::args().collect();
     let mut i = 1;
@@ -225,9 +227,8 @@ fn rollback_check(seed: u64, balls: u32, steps: u64) -> bool {
     }
 
     // Same inputs: exact reproduction.
-    let mut replayed = match ring.rollback(target) {
-        Ok(s) => s,
-        Err(_) => return false,
+    let Ok(mut replayed) = ring.rollback(target) else {
+        return false;
     };
     replay_to(&mut replayed, steps, &script);
     if replayed.hash() != original {
@@ -235,9 +236,8 @@ fn rollback_check(seed: u64, balls: u32, steps: u64) -> bool {
     }
 
     // Different inputs: deterministic divergence.
-    let mut diverged = match ring.rollback(target) {
-        Ok(s) => s,
-        Err(_) => return false,
+    let Ok(mut diverged) = ring.rollback(target) else {
+        return false;
     };
     let mut alt_script = script.clone();
     if let Some(&first) = diverged.world.entities_with::<forge::components::Velocity>().first() {
@@ -252,9 +252,8 @@ fn rollback_check(seed: u64, balls: u32, steps: u64) -> bool {
     replay_to(&mut diverged, steps, &alt_script);
     // Run the divergent replay twice: both must equal each other and differ
     // from the original.
-    let mut diverged2 = match ring.rollback(target) {
-        Ok(s) => s,
-        Err(_) => return false,
+    let Ok(mut diverged2) = ring.rollback(target) else {
+        return false;
     };
     replay_to(&mut diverged2, steps, &alt_script);
     diverged.hash() != original && diverged.hash() == diverged2.hash()

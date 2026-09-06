@@ -1,13 +1,13 @@
 //! Seeded pseudo-random number generator.
 //!
 //! The standard library ships no RNG, so the engine carries its own. The
-//! generator is SplitMix64, chosen because it is tiny, has no dependencies, and
+//! generator is `SplitMix64`, chosen because it is tiny, has no dependencies, and
 //! is fully deterministic given a seed. It lives inside the world state and is
 //! serialized with it, so a restored world continues the exact same stream.
 
 use crate::serialize::{ByteIo, Cursor, DecodeError};
 
-/// SplitMix64 generator. Same seed produces the same sequence, always.
+/// `SplitMix64` generator. Same seed produces the same sequence, always.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rng {
     state: u64,
@@ -20,10 +20,10 @@ impl Rng {
 
     /// Raw 64-bit output.
     pub fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9e3779b97f4a7c15);
+        self.state = self.state.wrapping_add(0x9e37_79b9_7f4a_7c15);
         let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
         z ^ (z >> 31)
     }
 
@@ -42,10 +42,15 @@ impl Rng {
         lo + (hi - lo) * self.next_f64()
     }
 
-    /// Uniform integer in [lo, hi). Panics if the range is empty.
+    /// Uniform integer in [lo, hi).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the range is empty (`hi <= lo`), which is a caller bug rather
+    /// than a runtime condition.
     pub fn range_u32(&mut self, lo: u32, hi: u32) -> u32 {
         assert!(hi > lo, "empty range");
-        lo + (self.next_u64() % (hi - lo) as u64) as u32
+        lo + (self.next_u64() % u64::from(hi - lo)) as u32
     }
 }
 

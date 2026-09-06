@@ -9,6 +9,10 @@
 //! of entities and tens of thousands of steps per run, with fewer seeds so the
 //! whole suite stays inside the stress time budget.
 
+// Loop-counter-to-float casts in test arithmetic: every value here is a small
+// spawn-wave index far below 2^53, so no precision is actually lost.
+#![allow(clippy::cast_precision_loss)]
+
 use forge::components::Velocity;
 use forge::math::{Transform, Vec2};
 use forge::sim::{Command, ScriptEntry, SimConfig, Simulation};

@@ -297,7 +297,7 @@ impl Simulation {
                 if let Some((toi, normal)) =
                     collision::swept_aabb(pos, moving_half, disp, sc, sh)
                 {
-                    if earliest.map(|(t, _, _)| toi < t).unwrap_or(true) {
+                    if earliest.is_none_or(|(t, _, _)| toi < t) {
                         earliest = Some((toi, normal, srest));
                     }
                 }
@@ -367,22 +367,13 @@ impl Simulation {
                 center: cb,
                 shape: self.world.get::<Collider>(eb).unwrap().shape,
             };
-            let manifold = match collision::collide(&a_view, &b_view) {
-                Some(m) => m,
-                None => continue,
+            let Some(manifold) = collision::collide(&a_view, &b_view) else {
+                continue;
             };
             let n = manifold.normal;
 
-            let va = self
-                .world
-                .get::<Velocity>(ea)
-                .map(|v| v.0)
-                .unwrap_or(Vec2::ZERO);
-            let vb = self
-                .world
-                .get::<Velocity>(eb)
-                .map(|v| v.0)
-                .unwrap_or(Vec2::ZERO);
+            let va = self.world.get::<Velocity>(ea).map_or(Vec2::ZERO, |v| v.0);
+            let vb = self.world.get::<Velocity>(eb).map_or(Vec2::ZERO, |v| v.0);
 
             // Impulse along the contact normal.
             let rv = vb - va;
@@ -438,6 +429,12 @@ impl Simulation {
 
     /// Restore state written by [`Simulation::serialize`]. Components are already
     /// registered by [`Simulation::empty`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DecodeError`] when the stream is truncated, violates a
+    /// layout invariant, or carries values a valid encoder never writes
+    /// (non-finite gravity, a bad timestep, a corrupt entity free list).
     pub fn deserialize(&mut self, bytes: &[u8]) -> Result<(), DecodeError> {
         let mut cur = Cursor::new(bytes);
         self.tick = u64::read(&mut cur)?;

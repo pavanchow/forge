@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn broadphase_matches_bruteforce_random() {
-        let mut rng = Rng::new(0xB16B00B5);
+        let mut rng = Rng::new(0xB16B_00B5);
         for _ in 0..200 {
             let n = rng.range_u32(2, 40) as usize;
             let mut bodies = Vec::new();

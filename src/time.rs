@@ -16,6 +16,12 @@ pub struct FixedTimestep {
 }
 
 impl FixedTimestep {
+    /// A timestep of `dt` seconds with the default step cap of 8.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dt` is zero or negative, which is a caller bug: a fixed
+    /// timestep must advance.
     pub fn new(dt: f64) -> Self {
         assert!(dt > 0.0, "timestep must be positive");
         FixedTimestep {

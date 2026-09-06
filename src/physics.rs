@@ -28,7 +28,7 @@ pub fn integrate_velocities(world: &mut World, gravity: Vec2, dt: f64) {
         .collect();
 
     for (e, rb) in bodies {
-        let force = world.get::<Forces>(e).map(|f| f.0).unwrap_or(Vec2::ZERO);
+        let force = world.get::<Forces>(e).map_or(Vec2::ZERO, |f| f.0);
         let accel = gravity + force * rb.inv_mass;
         if let Some(vel) = world.get_mut::<Velocity>(e) {
             vel.0 += accel * dt;
@@ -48,7 +48,7 @@ pub fn integrate_positions(world: &mut World, dt: f64) {
         .map(|(e, _)| e)
         .collect();
     for e in moving {
-        let v = world.get::<Velocity>(e).map(|v| v.0).unwrap_or(Vec2::ZERO);
+        let v = world.get::<Velocity>(e).map_or(Vec2::ZERO, |v| v.0);
         if let Some(t) = world.get_mut::<Transform>(e) {
             t.position += v * dt;
         }

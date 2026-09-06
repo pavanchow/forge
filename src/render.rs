@@ -87,6 +87,11 @@ impl Renderer for RecordingRenderer {
 
 /// Walk every entity that has a `Transform` and `Collider` and emit a draw
 /// command for its shape, in deterministic entity order.
+///
+/// # Panics
+///
+/// Panics if the `Collider` component type was never registered on the world,
+/// matching the other storage accessors.
 pub fn render_world<R: Renderer>(world: &World, renderer: &mut R, color: Color) {
     renderer.begin_frame();
     for e in world.entities_with::<Collider>() {

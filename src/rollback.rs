@@ -99,6 +99,12 @@ impl SnapshotRing {
     /// Rewind to `to_tick`: return a simulation restored from the snapshot
     /// recorded at exactly that tick. The result is bit-for-bit the world as
     /// it was, ready to replay forward with [`replay_to`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RollbackError::MissingTick`] when no retained snapshot was
+    /// recorded at exactly `to_tick`, and [`RollbackError::Corrupt`] when the
+    /// stored bytes fail to decode.
     pub fn rollback(&self, to_tick: u64) -> Result<Simulation, RollbackError> {
         let bytes = self
             .snapshot_bytes(to_tick)

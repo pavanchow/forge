@@ -5,8 +5,8 @@
 //! simulation-relevant bit, two runs that produce the same hash are guaranteed
 //! bit-for-bit identical.
 
-const FNV_OFFSET: u64 = 0xcbf29ce4_84222325;
-const FNV_PRIME: u64 = 0x00000100_000001b3;
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Streaming FNV-1a hasher.
 #[derive(Clone, Copy, Debug)]
@@ -29,7 +29,7 @@ impl Fnv1a {
 
     pub fn write(&mut self, bytes: &[u8]) {
         for &b in bytes {
-            self.state ^= b as u64;
+            self.state ^= u64::from(b);
             self.state = self.state.wrapping_mul(FNV_PRIME);
         }
     }
@@ -54,8 +54,8 @@ mod tests {
     fn known_vectors() {
         // FNV-1a 64-bit reference values.
         assert_eq!(hash_bytes(b""), FNV_OFFSET);
-        assert_eq!(hash_bytes(b"a"), 0xaf63dc4c8601ec8c);
-        assert_eq!(hash_bytes(b"foobar"), 0x85944171f73967e8);
+        assert_eq!(hash_bytes(b"a"), 0xaf63_dc4c_8601_ec8c);
+        assert_eq!(hash_bytes(b"foobar"), 0x8594_4171_f739_67e8);
     }
 
     #[test]

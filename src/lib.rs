@@ -8,7 +8,7 @@
 //!
 //! ## Modules
 //! - [`math`] 2D vectors and affine transforms.
-//! - [`prng`] a seeded SplitMix64 generator (the standard library has no RNG).
+//! - [`prng`] a seeded `SplitMix64` generator (the standard library has no RNG).
 //! - [`ecs`] a deterministic entity component system.
 //! - [`components`] the built-in simulation components.
 //! - [`time`] the fixed-timestep accumulator.
@@ -38,6 +38,28 @@
 //! again.run(300, &[]);
 //! assert_eq!(h, again.hash());
 //! ```
+
+// Pedantic lints that are wrong for this domain, not oversights:
+// - must_use_candidate and return_self_not_must_use: the API is query-style and
+//   callers legitimately discard results (step, record, insert, apply), so a
+//   few dozen attributes would add churn without catching a real bug.
+// - The cast family: the canonical binary format fixes widths (u32 entity
+//   indexes, u64 stream lengths) and index arithmetic depends on explicit
+//   widening and narrowing casts. Every narrowing value is bounded by
+//   construction (entity count is capped by index width, decode lengths are
+//   checked against the remaining input), so the truncation risk is nil.
+// - float_cmp: exact bit equality is the determinism contract. Comparisons on
+//   floats here are exact-zero checks after a sqrt and canonical-state
+//   assertions in tests, both intentional.
+#![allow(
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::float_cmp
+)]
 
 pub mod collision;
 pub mod components;

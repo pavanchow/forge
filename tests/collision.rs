@@ -56,7 +56,7 @@ fn broadphase_matches_bruteforce() {
     let heavy = fuzz_ops() > 60;
     let rounds = if heavy { 200 } else { fuzz_ops() };
     let max_bodies = if heavy { 400 } else { 60 };
-    let mut rng = Rng::new(0xDEADBEEF);
+    let mut rng = Rng::new(0xDEAD_BEEF);
     for round in 0..rounds {
         let n = rng.range_u32(2, max_bodies) as usize;
         // Vary density: a tight span forces many overlaps, a loose one few.

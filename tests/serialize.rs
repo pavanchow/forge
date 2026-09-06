@@ -113,7 +113,7 @@ fn checkpoint_roundtrips_stay_aligned() {
     // Snapshot at many mid-run checkpoints; each restore must hash equal and
     // continue bit-for-bit, and every re-serialization must be byte-stable.
     let ops = fuzz_ops();
-    let (balls, steps, checkpoints) = if ops <= 40 {
+    let (balls, steps, checkpoints): (u32, u64, u64) = if ops <= 40 {
         (20, 600, 3)
     } else {
         (150, 4_000, 8)
@@ -123,7 +123,7 @@ fn checkpoint_roundtrips_stay_aligned() {
     let interval = steps / (checkpoints + 1);
 
     for cp in 0..checkpoints {
-        original.run(interval as u64, &[]);
+        original.run(interval, &[]);
         assert_world_finite(&original);
         let snapshot = original.serialize();
 

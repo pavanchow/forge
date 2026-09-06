@@ -322,6 +322,12 @@ impl World {
 
     /// Restore state written by [`World::serialize`]. Component types must have
     /// been registered in the same order first.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DecodeError`] when the stream ends early, declares an
+    /// invalid free list, disagrees with the registered component order or
+    /// names, or carries a storage that fails its own decode.
     pub fn deserialize(&mut self, cur: &mut Cursor) -> Result<(), DecodeError> {
         let n = u64::read(cur)? as usize;
         let mut slots = Vec::with_capacity(n.min(cur.remaining()));
@@ -427,7 +433,7 @@ mod tests {
         let mut ents = Vec::new();
         for i in 0..5 {
             let e = w.spawn();
-            w.insert(e, Pos(i as f64, 0.0));
+            w.insert(e, Pos(f64::from(i), 0.0));
             ents.push(e);
         }
         let seen: Vec<f64> = w.query::<Pos>().map(|(_, p)| p.0).collect();
@@ -439,7 +445,7 @@ mod tests {
         let mut w = fresh();
         for i in 0..4 {
             let e = w.spawn();
-            w.insert(e, Pos(i as f64, i as f64));
+            w.insert(e, Pos(f64::from(i), f64::from(i)));
         }
         w.for_each_mut::<Pos>(|_, p| p.0 += 10.0);
         let xs: Vec<f64> = w.query::<Pos>().map(|(_, p)| p.0).collect();

@@ -5,6 +5,10 @@
 //! (not just truncated) serialized bytes, empty-world hash stability, corner
 //! contacts, and entity reuse under spawn/despawn mid-script.
 
+// Loop-counter-to-float casts in test arithmetic: every value here is a small
+// index far below 2^53, so no precision is actually lost.
+#![allow(clippy::cast_precision_loss)]
+
 use forge::collision::{brute_force_pairs, collide, detect_pairs, BodyView};
 use forge::components::{Collider, RigidBody, Shape, Velocity};
 use forge::ecs::World;
@@ -314,9 +318,9 @@ fn mutation_between_snapshot_and_iteration_is_safe_and_deterministic() {
     // must round-trip byte-stably afterwards.
     let mut w = World::new();
     w.register::<Velocity>();
-    for i in 0..6 {
+    for i in 0..6i32 {
         let e = w.spawn();
-        w.insert(e, Velocity(Vec2::new(i as f64, 0.0)));
+        w.insert(e, Velocity(Vec2::new(f64::from(i), 0.0)));
     }
 
     let snapshot = w.entities_with::<Velocity>();

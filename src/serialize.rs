@@ -20,6 +20,12 @@ impl<'a> Cursor<'a> {
         self.data.len() - self.pos
     }
 
+    /// Read `n` bytes or fail if the stream ends first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecodeError::UnexpectedEof`] when fewer than `n` bytes remain
+    /// or when `n` overflows the cursor position.
     pub fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         // checked_add: a corrupt stream can declare a length near usize::MAX,
         // and wrapping arithmetic would sail past the bounds check below.
@@ -56,6 +62,12 @@ impl std::error::Error for DecodeError {}
 /// Canonical little-endian byte serialization.
 pub trait ByteIo: Sized {
     fn write(&self, out: &mut Vec<u8>);
+    /// Decode one value from the front of `cur`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DecodeError`] when the stream ends early, carries a tag
+    /// outside the value's allowed set, or violates a layout invariant.
     fn read(cur: &mut Cursor) -> Result<Self, DecodeError>;
 }
 
@@ -103,7 +115,7 @@ impl ByteIo for f64 {
 
 impl ByteIo for bool {
     fn write(&self, out: &mut Vec<u8>) {
-        out.push(*self as u8);
+        out.push(u8::from(*self));
     }
     fn read(cur: &mut Cursor) -> Result<Self, DecodeError> {
         match u8::read(cur)? {
@@ -167,31 +179,31 @@ impl ByteIo for String {
 mod tests {
     use super::*;
 
-    fn roundtrip<T: ByteIo + PartialEq + std::fmt::Debug>(v: T) {
+    fn roundtrip<T: ByteIo + PartialEq + std::fmt::Debug>(v: &T) {
         let mut buf = Vec::new();
         v.write(&mut buf);
         let mut cur = Cursor::new(&buf);
         let back = T::read(&mut cur).unwrap();
-        assert_eq!(v, back);
+        assert_eq!(v, &back);
         assert_eq!(cur.remaining(), 0);
     }
 
     #[test]
     fn primitives_roundtrip() {
-        roundtrip(42u8);
-        roundtrip(40000u16);
-        roundtrip(3_000_000_000u32);
-        roundtrip(9_000_000_000_000u64);
-        roundtrip(-12345i32);
-        roundtrip(true);
-        roundtrip(false);
+        roundtrip(&42u8);
+        roundtrip(&40000u16);
+        roundtrip(&3_000_000_000u32);
+        roundtrip(&9_000_000_000_000u64);
+        roundtrip(&-12345i32);
+        roundtrip(&true);
+        roundtrip(&false);
     }
 
     #[test]
     fn float_bits_are_exact() {
-        roundtrip(1.5f64);
-        roundtrip(-0.0f64);
-        roundtrip(f64::MAX);
+        roundtrip(&1.5f64);
+        roundtrip(&-0.0f64);
+        roundtrip(&f64::MAX);
         // NaN cannot use PartialEq, so compare bit patterns directly.
         let mut buf = Vec::new();
         f64::NAN.write(&mut buf);
@@ -202,11 +214,11 @@ mod tests {
 
     #[test]
     fn compound_roundtrip() {
-        roundtrip(vec![1u32, 2, 3, 4]);
-        roundtrip(Some(7u64));
-        roundtrip(Option::<u64>::None);
-        roundtrip("forge".to_string());
-        roundtrip(vec![Some(1u8), None, Some(3u8)]);
+        roundtrip(&vec![1u32, 2, 3, 4]);
+        roundtrip(&Some(7u64));
+        roundtrip(&Option::<u64>::None);
+        roundtrip(&"forge".to_string());
+        roundtrip(&vec![Some(1u8), None, Some(3u8)]);
     }
 
     #[test]
