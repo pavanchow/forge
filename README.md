@@ -64,7 +64,8 @@ cargo run --release --bin forge -- --seed 42 --steps 600 --balls 40
 
 It prints world-state hashes as the run proceeds, then runs the same scenario a
 second time and confirms the hashes match, checks a serialize and restore round
-trip, and confirms a different seed yields a different world.
+trip, proves a rollback and replay from a snapshot ring reproduces the original
+hash, and confirms a different seed yields a different world.
 
 ## API tour
 
@@ -82,22 +83,39 @@ trip, and confirms a different seed yields a different world.
 - `render`: `Renderer` trait, `NoopRenderer`, `RecordingRenderer`.
 - `serialize`, `hash`: canonical binary encoding and FNV-1a over it.
 - `sim`: `Simulation`, `SimConfig`, `Command`. The whole thing tied together.
+- `rollback`: `SnapshotRing` and `replay_to` for rollback-netcode style rewinds.
 
 ## The correctness gate
 
-Three properties are enforced as tests. They are the point of the project. Each
-is bounded for CI and scaled by the `FORGE_FUZZ_OPS` environment variable.
+Five properties are enforced as tests. They are the point of the project. Each
+is bounded for CI and scaled by the `FORGE_FUZZ_OPS` environment variable. At
+the default of 40 or below the gates run the CI-sized workload. Above 40 they
+switch to max scale, with hundreds of entities, tens of thousands of steps, and
+checkpointed containment and restore soaks.
 
 1. Deterministic replay (`tests/determinism.rs`). Given a seed and an input
    script, the simulation produces an identical world-state hash on every run,
    across many seeds. Same seed, same result, bit for bit.
 2. Serialize round trip (`tests/serialize.rs`). Serializing the whole world and
    deserializing it yields an equal world, and continuing the simulation from
-   the restored world matches continuing the original bit for bit.
+   the restored world matches continuing the original bit for bit. Checkpoint
+   round trips at many mid-run ticks stay aligned, and truncated or corrupted
+   input is rejected as an error, never a panic.
 3. Collision correctness (`tests/collision.rs`). The broadphase plus narrowphase
    overlap set exactly matches a brute-force reference over many random entity
    sets, and the resolver stops fast bodies from tunneling through thin static
-   geometry at the fixed timestep.
+   geometry across a matrix of extreme timestep and speed combinations. A long
+   containment soak at extreme speeds asserts finiteness and containment at
+   periodic checkpoints.
+4. Adversarial and boundary inputs (`tests/gate_hardening.rs`). Zero-size
+   bodies, bodies exactly on cell boundaries, non-finite geometry, corner
+   contacts with two simultaneous walls, empty-world hash stability, restore
+   chains across generations, and mass spawn and despawn churn all stay
+   deterministic, bounded, and free of NaN or infinity.
+5. Rollback reproduction (`tests/rollback.rs`). Rolling back to a recorded tick
+   and replaying forward with the same inputs reproduces the original final
+   hash exactly. Replaying with different inputs diverges, and the divergence
+   itself is deterministic. The snapshot ring evicts a bounded window cleanly.
 
 Plus unit tests per module for vector math, ECS add, remove, and query, the
 integrator, and PRNG determinism.

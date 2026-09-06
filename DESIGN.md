@@ -16,8 +16,10 @@ trait, which every stored type implements. Above them `prng` provides a seeded
 generator and `hash` provides FNV-1a over bytes. The `ecs` module holds entities
 and typed component storage. `components` defines the concrete component types.
 `physics`, `collision`, `time`, `input`, `scene`, and `render` are the systems
-and services. At the top `sim` owns a world plus the RNG, gravity, and the tick
-counter, and defines the step order that turns all of it into a simulation.
+and services. `rollback` layers a snapshot ring over the canonical encoding for
+netcode-style rewinds. At the top `sim` owns a world plus the RNG, gravity, and
+the tick counter, and defines the step order that turns all of it into a
+simulation.
 
 Nothing depends on a graphics library or the clock. Rendering is a trait and time
 is a value that the caller advances. That is what keeps the core headless.
@@ -93,7 +95,11 @@ continuous check folded into movement.
 
 Narrowphase tests two shapes and returns a manifold, a unit normal pointing from
 the first body to the second and a non-negative penetration depth. It covers
-every pairing of axis-aligned boxes and circles.
+every pairing of axis-aligned boxes and circles. Bodies with non-finite centers
+or extents collide with nothing. There is no meaningful manifold at infinity, a
+NaN manifold would silently poison resolution, and non-finite geometry can only
+enter through caller error or corruption, so the case is rejected before any
+arithmetic that could propagate it.
 
 Broadphase is a uniform spatial grid. Each body is inserted into every grid cell
 its bounding box touches, then bodies that share a cell become candidate pairs.
@@ -101,6 +107,15 @@ Because two overlapping bounding boxes must share at least one cell, the grid ca
 never miss a real overlap. It only ever produces a superset of the true pairs,
 which narrowphase then filters. The grid keeps the cost near linear in the common
 sparse case while staying correct at any density.
+
+The grid is also bounded against pathological bounds. A body whose bounding box
+extends beyond the finite range, for example after a caller injects an infinite
+position, contributes no candidates, which matches narrowphase, which also
+rejects it. A finite body whose bounds span more than 2^20 cells per axis is
+treated as giant and simply paired against every other body, since a body that
+size overlaps a huge fraction of the world anyway. Both fallbacks keep the
+candidate set a superset of the true pairs and keep the per-body cell walk
+bounded, so no input can hang the loop.
 
 Resolution handles a contact in two moves. An impulse along the contact normal
 corrects the relative velocity using the combined inverse mass and a restitution
@@ -130,6 +145,31 @@ capture every simulation-relevant value exactly, two worlds with the same hash
 are bit-for-bit identical, and the same bytes are used for both saving and
 hashing, so the two can never disagree.
 
+Decoding is defensive because save data is untrusted input. The cursor uses
+checked arithmetic, so a corrupt stream that declares an absurd length fails
+with an end-of-input error instead of overflowing an index. The entity free
+list is validated on read, every entry must point at an existing dead slot and
+appear at most once, because an out-of-range entry would panic a later spawn
+and a duplicate would alias two entities onto one handle. The timestep enforces
+its positive-dt invariant on read, not just in its constructor. Rejection is
+always an error value, never a panic.
+
+## Rollback netcode snapshots
+
+`rollback` provides the primitive a lockstep-with-rollback netcode needs. A
+`SnapshotRing` holds a bounded window of world snapshots keyed by tick. Each
+snapshot is the canonical serialization, so restoring one reproduces the world
+at that tick exactly, RNG stream and all. The ring evicts its oldest entry when
+full, mirroring how a client only needs the window of confirmed ticks the
+remote peer may ask it to rewind to.
+
+Rolling back returns a restored simulation, and `replay_to` advances it to a
+target tick applying an input script along the way. The whole scheme stands on
+determinism. Replaying the same inputs from the same snapshot must land on the
+same final hash, and that is exactly what gate five asserts, along with the
+contrapositive that different inputs diverge and the divergence itself is
+reproducible.
+
 ## Why each gate proves what it claims
 
 Gate one, deterministic replay, runs the same seed and script twice across many
@@ -154,6 +194,27 @@ so exact set equality proves the broadphase drops nothing and invents nothing.
 For resolution it launches a body fast enough to cross a thin wall in a single
 step and asserts that across the whole run the body never appears on the far side.
 That is a direct test of the anti-tunneling behaviour rather than a proxy for it.
+At max scale the tunneling claim runs across a matrix of timestep and speed
+combinations, and a long soak with many fast balls asserts containment and
+finiteness at periodic checkpoints instead of only at the end.
+
+Gate four, adversarial and boundary inputs, covers the cases the first three
+gates never touch. Zero-size bodies and bodies exactly on cell boundaries probe
+the geometric edges of the broadphase oracle. Non-finite geometry asserts the
+narrowphase rejects it and the grid stays bounded. A corrupted-stream test
+flips every byte of a real snapshot and requires each mutation to decode to Ok
+or Err and never panic, with any Ok result still stepping and hashing safely.
+Hand-crafted free lists and timesteps verify the read-side validation directly.
+Empty-world hash stability, multi-generation restore chains, corner contacts
+with two simultaneous walls, and mass spawn and despawn churn verify that
+degenerate but legal worlds stay deterministic and finite.
+
+Gate five, rollback reproduction, records a snapshot ring during a run, rolls
+back to a mid-run tick, and replays forward. Same inputs must reproduce the
+original final hash exactly, twice in a row. Different inputs must diverge,
+and the divergent replay must itself be repeatable. This proves the snapshot
+restore is exact and that determinism survives a rewind, which is the property
+rollback netcode is built on.
 
 ## Rendering as a trait
 

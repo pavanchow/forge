@@ -20,6 +20,7 @@
 //! - [`serialize`] canonical binary encoding used for saves and hashing.
 //! - [`hash`] FNV-1a over the canonical encoding.
 //! - [`sim`] the `Simulation` that ties it all together.
+//! - [`rollback`] snapshot ring for rollback-netcode style rewinds.
 //!
 //! ## Quickstart
 //! ```
@@ -47,6 +48,7 @@ pub mod math;
 pub mod physics;
 pub mod prng;
 pub mod render;
+pub mod rollback;
 pub mod scene;
 pub mod serialize;
 pub mod sim;
@@ -54,4 +56,5 @@ pub mod time;
 
 pub use ecs::{Entity, World};
 pub use math::{vec2, Transform, Vec2};
+pub use rollback::{replay_to, RollbackError, SnapshotRing};
 pub use sim::{Command, SimConfig, Simulation};

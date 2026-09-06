@@ -3,7 +3,8 @@
 //! Runs a scripted simulation from a seed, prints world-state hashes along the
 //! way, then proves determinism by running the identical scenario a second time
 //! and checking the hashes match bit-for-bit. Also verifies a mid-run
-//! serialize/restore round-trip.
+//! serialize/restore round-trip and a rollback/replay reproduction from a
+//! snapshot ring.
 //!
 //! Usage:
 //!   forge [--seed N] [--steps N] [--balls N]
@@ -173,6 +174,12 @@ fn main() {
         if roundtrip { "PASS" } else { "FAIL" }
     );
 
+    let rollback = rollback_check(seed, balls, steps);
+    println!(
+        "rollback/replay reproduction:      {}",
+        if rollback { "PASS" } else { "FAIL" }
+    );
+
     // A different seed must produce a different world.
     let h_other = run_and_trace(seed.wrapping_add(1), balls, steps, false);
     let distinct = h_other != h1;
@@ -181,11 +188,74 @@ fn main() {
         if distinct { "PASS" } else { "FAIL" }
     );
 
-    if deterministic && roundtrip && distinct {
+    if deterministic && roundtrip && rollback && distinct {
         println!("\nALL CHECKS PASSED");
         std::process::exit(0);
     } else {
         eprintln!("\nCHECK FAILED");
         std::process::exit(1);
     }
+}
+
+/// Record snapshots into a ring, rewind to the halfway point, then prove that
+/// replaying the same inputs reproduces the original final hash while a
+/// divergent input script produces a different (but itself reproducible) hash.
+fn rollback_check(seed: u64, balls: u32, steps: u64) -> bool {
+    use forge::rollback::{replay_to, SnapshotRing};
+
+    let (sim, script) = build(seed, balls, steps);
+    // Keep the ring small: record every `interval` ticks.
+    let interval = (steps / 32).max(1);
+    let mut ring = SnapshotRing::new(40);
+    let mut probe = sim;
+    loop {
+        let next_tick = probe.tick + interval;
+        replay_to(&mut probe, next_tick, &script);
+        ring.record(&probe);
+        if probe.tick >= steps {
+            break;
+        }
+    }
+    let original = probe.hash();
+
+    // Roll back to the newest recorded tick at or before the halfway point.
+    let target = interval * (steps / 2 / interval);
+    if !ring.can_rollback(target) {
+        return false;
+    }
+
+    // Same inputs: exact reproduction.
+    let mut replayed = match ring.rollback(target) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    replay_to(&mut replayed, steps, &script);
+    if replayed.hash() != original {
+        return false;
+    }
+
+    // Different inputs: deterministic divergence.
+    let mut diverged = match ring.rollback(target) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let mut alt_script = script.clone();
+    if let Some(&first) = diverged.world.entities_with::<forge::components::Velocity>().first() {
+        alt_script.push((
+            target + interval / 2 + 1,
+            Command::Impulse {
+                entity: first,
+                delta_v: Vec2::new(-90.0, 50.0),
+            },
+        ));
+    }
+    replay_to(&mut diverged, steps, &alt_script);
+    // Run the divergent replay twice: both must equal each other and differ
+    // from the original.
+    let mut diverged2 = match ring.rollback(target) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    replay_to(&mut diverged2, steps, &alt_script);
+    diverged.hash() != original && diverged.hash() == diverged2.hash()
 }
