@@ -43,8 +43,13 @@ pub struct RigidBody {
 
 impl RigidBody {
     pub fn dynamic(mass: f64, restitution: f64) -> Self {
+        // 1/mass can overflow to infinity for a denormal-positive mass. Such a
+        // body is effectively infinitely heavy, so it collapses to inv_mass 0
+        // (the same treatment as zero mass) and the serialized state stays
+        // within the invariants `read` enforces.
+        let inv_mass = if mass > 0.0 { 1.0 / mass } else { 0.0 };
         RigidBody {
-            inv_mass: if mass > 0.0 { 1.0 / mass } else { 0.0 },
+            inv_mass: if inv_mass.is_finite() { inv_mass } else { 0.0 },
             restitution,
             is_static: false,
         }
@@ -66,9 +71,19 @@ impl ByteIo for RigidBody {
         self.is_static.write(out);
     }
     fn read(cur: &mut Cursor) -> Result<Self, DecodeError> {
+        let inv_mass = f64::read(cur)?;
+        let restitution = f64::read(cur)?;
+        // A valid encoder never emits a negative or non-finite inv_mass (see
+        // `dynamic`: zero or overflowing mass collapses to 0) nor a non-finite
+        // restitution. Either reaching a live contact would multiply a NaN
+        // straight into another body's velocity, so a stream carrying one is
+        // corrupt and is rejected rather than decoded.
+        if !inv_mass.is_finite() || inv_mass < 0.0 || !restitution.is_finite() {
+            return Err(DecodeError::BadLayout);
+        }
         Ok(RigidBody {
-            inv_mass: f64::read(cur)?,
-            restitution: f64::read(cur)?,
+            inv_mass,
+            restitution,
             is_static: bool::read(cur)?,
         })
     }

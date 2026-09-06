@@ -6,7 +6,7 @@
 //! contacts, and entity reuse under spawn/despawn mid-script.
 
 use forge::collision::{brute_force_pairs, collide, detect_pairs, BodyView};
-use forge::components::{Collider, Shape, Velocity};
+use forge::components::{Collider, RigidBody, Shape, Velocity};
 use forge::ecs::World;
 use forge::math::{vec2, Transform, Vec2};
 use forge::serialize::{ByteIo, Cursor, DecodeError};
@@ -197,6 +197,181 @@ fn timestep_read_rejects_nonpositive_dt() {
     let valid = craft(1.0 / 60.0);
     let mut cur = Cursor::new(&valid);
     assert!(FixedTimestep::read(&mut cur).is_ok(), "valid dt must decode");
+}
+
+#[test]
+fn nonfinite_gravity_never_poisons_scripts_or_restored_worlds() {
+    // Script boundary: a scripted SetGravity carrying NaN or infinity must be
+    // neutralized like every other caller input. Gravity feeds every dynamic
+    // body through integration, so a single NaN here poisons the whole world.
+    let config = SimConfig::default();
+    let build = || {
+        let mut sim = Simulation::new(config, 13);
+        sim.add_walls(config.bounds_min, config.bounds_max, 5.0, 0.9);
+        sim.spawn_ball(Vec2::new(50.0, 50.0), Vec2::new(5.0, 5.0), 1.0, 1.0, 0.8);
+        sim.spawn_ball(Vec2::new(20.0, 80.0), Vec2::new(-5.0, 0.0), 1.5, 2.0, 0.8);
+        sim
+    };
+    let mut a = build();
+    let mut b = build();
+    let script: Vec<ScriptEntry> = vec![
+        (5, Command::SetGravity(Vec2::new(f64::NAN, f64::INFINITY))),
+        (50, Command::SetGravity(Vec2::new(0.0, 45.0))),
+    ];
+    a.run(250, &script);
+    b.run(250, &script);
+    assert_world_finite(&a);
+    assert_eq!(a.hash(), b.hash(), "NaN gravity must be handled deterministically");
+
+    // Stream boundary: a corrupted stream with non-finite gravity must be
+    // rejected, not decoded into a world that poisons itself on the next step.
+    // Serialize layout: tick (8 bytes) then gravity.x then gravity.y.
+    let bytes = sim_bytes();
+    for (name, bits) in [("NaN x", f64::NAN), ("inf y", f64::INFINITY)] {
+        let mut bad = bytes.clone();
+        if name == "NaN x" {
+            bad[8..16].copy_from_slice(&bits.to_le_bytes());
+        } else {
+            bad[16..24].copy_from_slice(&bits.to_le_bytes());
+        }
+        let mut restored = Simulation::empty(SimConfig::default());
+        let result = restored.deserialize(&bad);
+        assert!(result.is_err(), "gravity {name} in a stream must be rejected");
+    }
+}
+
+/// Hand-craft a serialized world byte stream carrying one component type. Used
+/// to place exact corrupted values inside a `RigidBody` storage.
+fn craft_single_type_world<T: ByteIo + Clone>(type_name: &str, items: &[Option<T>]) -> Vec<u8> {
+    let mut out = Vec::new();
+    (1u64).write(&mut out); // one slot, alive
+    0u32.write(&mut out); // generation
+    true.write(&mut out); // alive
+    Vec::<u32>::new().write(&mut out); // empty free list
+    (1u64).write(&mut out); // one registered type
+    type_name.to_string().write(&mut out);
+    items.to_vec().write(&mut out);
+    out
+}
+
+#[test]
+fn corrupt_rigidbody_fields_are_rejected() {
+    // A valid encoder never emits a negative or non-finite inv_mass (a
+    // denormal-mass body collapses to inv_mass 0 at the boundary) nor a
+    // non-finite restitution. Either reaching a live contact would multiply a
+    // NaN straight into another body's velocity, so the stream is corrupt.
+    let cases: Vec<(&str, RigidBody)> = vec![
+        (
+            "NaN inv_mass",
+            RigidBody { inv_mass: f64::NAN, restitution: 0.5, is_static: false },
+        ),
+        (
+            "inf inv_mass",
+            RigidBody { inv_mass: f64::INFINITY, restitution: 0.5, is_static: false },
+        ),
+        (
+            "negative inv_mass",
+            RigidBody { inv_mass: -1.0, restitution: 0.5, is_static: false },
+        ),
+        (
+            "NaN restitution",
+            RigidBody { inv_mass: 0.5, restitution: f64::NAN, is_static: false },
+        ),
+        (
+            "inf restitution",
+            RigidBody { inv_mass: 0.5, restitution: f64::INFINITY, is_static: false },
+        ),
+    ];
+    for (name, body) in cases {
+        let bytes = craft_single_type_world("forge::components::RigidBody", &[Some(body)]);
+        let mut world = World::new();
+        world.register::<RigidBody>();
+        let result = world.deserialize(&mut Cursor::new(&bytes));
+        assert!(result.is_err(), "corrupt RigidBody ({name}) must be rejected");
+    }
+
+    // The control stream with sane values must still decode.
+    let ok = craft_single_type_world(
+        "forge::components::RigidBody",
+        &[Some(RigidBody { inv_mass: 0.5, restitution: 0.8, is_static: false })],
+    );
+    let mut world = World::new();
+    world.register::<RigidBody>();
+    world
+        .deserialize(&mut Cursor::new(&ok))
+        .expect("sane RigidBody stream must decode");
+}
+
+#[test]
+fn mutation_between_snapshot_and_iteration_is_safe_and_deterministic() {
+    // Queries yield a deterministic snapshot: `entities_with` collects handles
+    // up front, so the world can be mutated (despawn a visited entity, spawn
+    // new ones) while the snapshot is consumed without stale handles panicking
+    // and without the iteration order depending on the mutation timing. The
+    // engine's own systems rely on exactly this contract (scripts spawn balls
+    // between phases), so it is locked here: fresh entities must sort into
+    // index order on the next pass, stale handles must be inert, and the world
+    // must round-trip byte-stably afterwards.
+    let mut w = World::new();
+    w.register::<Velocity>();
+    for i in 0..6 {
+        let e = w.spawn();
+        w.insert(e, Velocity(Vec2::new(i as f64, 0.0)));
+    }
+
+    let snapshot = w.entities_with::<Velocity>();
+    assert_eq!(snapshot.len(), 6);
+
+    // Mutate while "iterating" the snapshot: bump velocities of the first
+    // three, despawn one already-visited entity, spawn two new entities whose
+    // indexes slot into the existing index space (reuse of the despawned slot
+    // and a fresh slot).
+    let mut bumped: Vec<u32> = Vec::new();
+    for (n, &e) in snapshot.iter().enumerate() {
+        if let Some(v) = w.get_mut::<Velocity>(e) {
+            v.0 += Vec2::new(0.0, 1.0);
+            bumped.push(e.index);
+        }
+        if n == 3 {
+            // Despawn a visited entity and spawn into the freed index space
+            // while the snapshot is still being consumed.
+            assert!(w.despawn(snapshot[2]), "despawn of a visited entity must succeed");
+            let reuse = w.spawn();
+            w.insert(reuse, Velocity(Vec2::new(500.0, 0.0)));
+            let fresh = w.spawn();
+            w.insert(fresh, Velocity(Vec2::new(600.0, 0.0)));
+        }
+    }
+    assert_eq!(bumped, vec![0, 1, 2, 3, 4, 5], "visited order must stay index-ordered");
+
+    // Fresh iteration: the reused index carries a new generation, the fresh
+    // entity appends, and order is still ascending by index.
+    let now: Vec<(u32, u32, f64)> = w
+        .query::<Velocity>()
+        .map(|(e, v)| (e.index, e.generation, v.0.x))
+        .collect();
+    assert_eq!(
+        now,
+        vec![
+            (0, 0, 0.0),
+            (1, 0, 1.0),
+            (2, 1, 500.0), // reused slot, bumped generation
+            (3, 0, 3.0),
+            (4, 0, 4.0),
+            (5, 0, 5.0),
+            (6, 0, 600.0), // brand new slot
+        ]
+    );
+
+    // Byte-stable round-trip after mutation-during-iteration.
+    let mut buf = Vec::new();
+    w.serialize(&mut buf);
+    let mut w2 = World::new();
+    w2.register::<Velocity>();
+    w2.deserialize(&mut Cursor::new(&buf)).unwrap();
+    let mut buf2 = Vec::new();
+    w2.serialize(&mut buf2);
+    assert_eq!(buf, buf2, "world after mid-iteration mutation must round-trip");
 }
 
 // ---------------------------------------------------------------------------

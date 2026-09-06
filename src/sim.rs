@@ -175,7 +175,11 @@ impl Simulation {
     /// Apply a scripted command immediately.
     pub fn apply(&mut self, command: Command) {
         match command {
-            Command::SetGravity(g) => self.gravity = g,
+            // Gravity feeds every dynamic body through integration, so a
+            // non-finite value here would poison the whole world on the next
+            // step. It is neutralized at this boundary like every other caller
+            // input.
+            Command::SetGravity(g) => self.gravity = g.finite_or_zero(),
             Command::Impulse { entity, delta_v } => {
                 let delta_v = delta_v.finite_or_zero();
                 if let Some(v) = self.world.get_mut::<Velocity>(entity) {
@@ -438,6 +442,13 @@ impl Simulation {
         let mut cur = Cursor::new(bytes);
         self.tick = u64::read(&mut cur)?;
         self.gravity = Vec2::read(&mut cur)?;
+        // Gravity multiplies into every dynamic body each step, so a non-finite
+        // value from a corrupt stream would poison the entire world on the next
+        // step. A valid encoder never writes one (SetGravity neutralizes), so
+        // this is corruption, not state: reject it like a bad timestep.
+        if !self.gravity.x.is_finite() || !self.gravity.y.is_finite() {
+            return Err(DecodeError::BadLayout);
+        }
         self.timestep = FixedTimestep::read(&mut cur)?;
         self.rng = Rng::read(&mut cur)?;
         self.world.deserialize(&mut cur)?;
