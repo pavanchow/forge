@@ -3,298 +3,203 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge: a deterministic, dependency-free 2D game engine in Rust</title>
+<meta name="description" content="Forge by Pavan Nallamothu: a from-scratch, dependency-free 2D game engine in pure Rust std. It has an ECS, a fixed-timestep loop, semi-implicit Euler physics, swept collision, and a headless core. Same seed plus same steps hashes to the same world, every run. Drive the browser twin and prove determinism live.">
+<meta name="author" content="Pavan Nallamothu (pavanchow)">
+<link rel="canonical" href="https://pavanchow.github.io/forge/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
-<title>Forge</title>
+<link rel="author" href="https://github.com/pavanchow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Forge: a deterministic, dependency-free 2D game engine in Rust">
+<meta property="og:description" content="A from-scratch 2D game engine in pure Rust std: ECS, fixed-timestep physics, swept collision, headless core. Same seed replays the exact same world. By Pavan Nallamothu.">
+<meta property="og:url" content="https://pavanchow.github.io/forge/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Forge: a deterministic, dependency-free 2D game engine in Rust">
+<meta name="twitter:description" content="A deterministic game engine where a whole run collapses to one hash. Run it, then replay from the seed and watch the hash return.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Forge","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Forge is a from-scratch, dependency-free 2D game engine in pure Rust std: an entity component system, a fixed-timestep loop, semi-implicit Euler physics, AABB and circle collision with swept resolution, an input and event system, a scene hierarchy, and a headless rendering abstraction. Given a seed and an input script the world evolves identically on every run and hashes to a single number.","url":"https://pavanchow.github.io/forge/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/forge","license":"https://opensource.org/licenses/MIT"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+</script>
 <style>
-/* Base light-mode rule. Light variables and body background/color live here FIRST. */
 :root {
-  --bg: #f5f5f7;
-  --surface: #ffffff;
-  --surface-2: #fbfbfd;
-  --text: #1d1d1f;
-  --text-muted: #6e6e73;
-  --border: #e3e3e6;
-  --accent: #0071e3;
-  --accent-soft: rgba(0, 113, 227, 0.12);
-  --good: #1a8a45;
-  --good-bg: rgba(26, 138, 69, 0.12);
-  --bad: #cc2b2b;
-  --bad-bg: rgba(204, 43, 43, 0.12);
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.05);
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --accent:#0071e3;--accent2:#3a9bff;--accent-soft:rgba(0,113,227,0.12);
+  --ink:#1d1d1f;--muted:#6e6e73;--faint:#6e6e73;
+  --line:#e3e3e6;--panel:#fbfbfd;--panel2:#ffffff;--ok:#1a8a45;--err:#cc2b2b;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* component aliases used by the playground */
+  --bg:#f5f5f7;--surface:#ffffff;--surface-2:#fbfbfd;--text:#1d1d1f;--text-muted:#6e6e73;--border:#e3e3e6;
+  --good:#1a8a45;--good-bg:rgba(26,138,69,0.12);--bad:#cc2b2b;--bad-bg:rgba(204,43,43,0.12);
+  --shadow:0 2px 8px rgba(0,0,0,0.06),0 8px 24px rgba(0,0,0,0.05);
 }
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ==== DARK OVERRIDE BLOCK: comes AFTER base body{}; re-declares variables AND body bg + color ==== */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface-2: #161618;
-    --text: #f5f5f7;
-    --text-muted: #98989d;
-    --border: #2c2c2e;
-    --accent: #2997ff;
-    --accent-soft: rgba(41, 151, 255, 0.16);
-    --good: #35c759;
-    --good-bg: rgba(53, 199, 89, 0.16);
-    --bad: #ff453a;
-    --bad-bg: rgba(255, 69, 58, 0.16);
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-  body {
-    background-color: var(--bg);
-    color: var(--text);
+    --accent:#2997ff;--accent2:#5cb0ff;--accent-soft:rgba(41,151,255,0.16);
+    --ink:#f5f5f7;--muted:#98989d;--faint:#98989d;
+    --line:#2c2c2e;--panel:#161618;--panel2:#1c1c1e;--ok:#35c759;--err:#ff453a;
+    --bg:#000000;--surface:#1c1c1e;--surface-2:#161618;--text:#f5f5f7;--text-muted:#98989d;--border:#2c2c2e;
+    --good:#35c759;--good-bg:rgba(53,199,89,0.16);--bad:#ff453a;--bad-bg:rgba(255,69,58,0.16);
+    --shadow:0 2px 8px rgba(0,0,0,0.4),0 8px 24px rgba(0,0,0,0.5);
   }
 }
+* { box-sizing: border-box; margin:0; padding:0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior:smooth; }
+body {
+  font-family: var(--sans);
+  background:#fff;
+  color: var(--ink);
+  font-size:17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) { body { background:#000; } }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+a { color: var(--accent); text-decoration:none; }
+a:hover { text-decoration: underline; }
 
-.wrap {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 0 24px 80px;
-}
-header.hero {
-  text-align: center;
-  padding: 80px 24px 56px;
-}
-header.hero h1 {
-  font-size: 64px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0 0 12px;
-  background: linear-gradient(180deg, var(--text), var(--text-muted));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-header.hero p {
-  font-size: 21px;
-  color: var(--text-muted);
-  margin: 0 auto;
-  max-width: 620px;
-}
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  padding: 28px;
-  margin: 0 0 28px;
-}
-.card h2 {
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 6px;
-}
-.card h2 + .sub {
-  color: var(--text-muted);
-  margin: 0 0 22px;
-  font-size: 15px;
-}
-canvas#stage {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  touch-action: none;
-}
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 20px 0 4px;
-  align-items: center;
-}
-button {
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 980px;
-  padding: 10px 20px;
-  cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.05s ease;
-}
-button:hover { opacity: 0.88; }
-button:active { transform: scale(0.97); }
-button.secondary {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-button.ghost {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-.field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-muted);
-}
-.field label { white-space: nowrap; }
-input[type="number"], input[type="text"] {
-  font-family: var(--mono);
-  font-size: 14px;
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 10px;
-  width: 96px;
-}
-input[type="range"] {
-  accent-color: var(--accent);
-  width: 150px;
-}
-input:focus, button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.readouts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-top: 22px;
-}
-.readout {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 16px;
-}
-.readout .k {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-.readout .v {
-  font-family: var(--mono);
-  font-size: 18px;
-  font-weight: 600;
-  word-break: break-all;
-}
-.proof {
-  margin-top: 24px;
-  padding: 20px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}
-.proof-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 16px 0;
-}
-.proof-cell .k {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-.proof-cell .v {
-  font-family: var(--mono);
-  font-size: 15px;
-  word-break: break-all;
-}
-.verdict {
-  display: inline-block;
-  font-weight: 600;
-  font-size: 15px;
-  padding: 8px 16px;
-  border-radius: 980px;
-}
-.verdict.match { color: var(--good); background: var(--good-bg); }
-.verdict.mismatch { color: var(--bad); background: var(--bad-bg); }
-.verdict.idle { color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); }
-ol.guide { padding-left: 22px; margin: 0; }
-ol.guide li { margin-bottom: 12px; }
-dl.howto { margin: 0; }
-dl.howto dt {
-  font-weight: 600;
-  margin-top: 16px;
-}
-dl.howto dd {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-}
-code {
-  font-family: var(--mono);
-  font-size: 0.92em;
-  background: var(--accent-soft);
-  color: var(--accent);
-  padding: 1px 6px;
-  border-radius: 6px;
-}
-.section-title {
-  font-size: 22px;
-  font-weight: 600;
-  margin: 0 0 14px;
-}
-p.lede { color: var(--text-muted); font-size: 16px; }
-footer {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 14px;
-  padding: 40px 24px 0;
-}
-footer a { color: var(--accent); text-decoration: none; }
-footer a:hover { text-decoration: underline; }
-details.pg > summary {
-  cursor: pointer;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-details.pg > summary::-webkit-details-marker { display: none; }
-details.pg > summary::before {
-  content: "▸";
-  color: var(--accent);
-  font-size: 20px;
-}
-details.pg[open] > summary::before { content: "▾"; }
-details.pg > summary + * { margin-top: 20px; }
+nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.82);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
+@media(prefers-color-scheme:dark){nav{background:rgba(0,0,0,.72)}}
+nav .row{display:flex;justify-content:space-between;align-items:center;height:56px;max-width:1040px;margin:0 auto;padding:0 28px}
+nav .brand{display:flex;align-items:center;gap:9px;font-size:18px;font-weight:650;letter-spacing:-.01em}
+nav .brand .gem{width:16px;height:16px;border-radius:5px;background:linear-gradient(135deg,#3a9bff,#0062d6)}
+nav .links{display:flex;gap:26px;align-items:center}
+nav .links a{color:var(--ink);font-size:14.5px}
+@media(max-width:640px){nav .links a:not(.gh){display:none}}
+
+.hero{padding:80px 0 30px;text-align:center}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(40px,7vw,66px);line-height:1.05;letter-spacing:-.035em;font-weight:680;margin:18px 0 0;text-wrap:balance}
+.hero p.sub{max-width:680px;margin:24px auto 0;font-size:clamp(17px,2.1vw,21px);color:var(--muted)}
+.cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+.btn{display:inline-block;padding:13px 26px;border-radius:999px;font-size:15px;font-weight:600;border:1px solid var(--ink);color:var(--ink)}
+.btn:hover{opacity:.75;text-decoration:none}
+.btn.primary{background:var(--ink);color:var(--panel2);border-color:var(--ink)}
+@media(prefers-color-scheme:dark){.btn.primary{color:#000}}
+
+.howto{max-width:720px;margin:0 auto 26px;border:1px solid var(--line);border-radius:14px;padding:2px 20px;background:var(--panel)}
+.howto>summary{cursor:pointer;font-weight:600;padding:14px 0;list-style:none}
+.howto>summary::-webkit-details-marker{display:none}
+.howto>summary::before{content:"\25B8";display:inline-block;margin-right:8px;color:var(--accent);transition:transform .15s}
+.howto[open]>summary::before{transform:rotate(90deg)}
+.howto p.sub{margin:0 0 14px;color:var(--muted)}
+
+.stage{max-width:1000px;margin:36px auto 0;padding:0 20px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 60px -34px rgba(0,113,227,.4);padding:28px;}
+.card h2{font-size:24px;font-weight:640;letter-spacing:-.01em;margin:0 0 6px}
+.card h2 + .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
+
+section{padding:84px 0;border-top:1px solid var(--line)}
+section h2{font-size:clamp(26px,4.2vw,38px);line-height:1.12;letter-spacing:-.025em;font-weight:660;text-align:center;max-width:760px;margin:0 auto}
+.lead{max-width:680px;margin:18px auto 0;text-align:center;color:var(--muted)}
+pre.termi{background:#15161c;color:#ececf4;border-radius:14px;padding:20px 22px;font-family:var(--mono);font-size:13px;line-height:1.6;overflow-x:auto;max-width:820px;margin:30px auto 0}
+pre.termi .cm{color:#8a8d9a} pre.termi .g{color:#7fd6a0}
+
+/* ===== playground component styles (unchanged behavior) ===== */
+canvas#stage{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;touch-action:none}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 4px;align-items:center}
+button{font-family:var(--sans);font-size:15px;font-weight:500;color:#fff;background:var(--accent);border:none;border-radius:980px;padding:10px 20px;cursor:pointer;transition:opacity .15s ease,transform .05s ease}
+button:hover{opacity:.88}
+button:active{transform:scale(.97)}
+button.secondary{background:var(--accent-soft);color:var(--accent)}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.field{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-muted)}
+.field label{white-space:nowrap}
+input[type="number"],input[type="text"]{font-family:var(--mono);font-size:14px;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;width:96px}
+input[type="range"]{accent-color:var(--accent);width:150px}
+input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:22px}
+.readout{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.readout .k{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:4px}
+.readout .v{font-family:var(--mono);font-size:18px;font-weight:600;word-break:break-all}
+.proof{margin-top:24px;padding:20px;background:var(--surface-2);border:1px solid var(--border);border-radius:16px}
+.proof-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.proof-cell .k{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:4px}
+.proof-cell .v{font-family:var(--mono);font-size:15px;word-break:break-all}
+.verdict{display:inline-block;font-weight:600;font-size:15px;padding:8px 16px;border-radius:980px}
+.verdict.match{color:var(--good);background:var(--good-bg)}
+.verdict.mismatch{color:var(--bad);background:var(--bad-bg)}
+.verdict.idle{color:var(--text-muted);background:var(--surface);border:1px solid var(--border)}
+ol.guide{padding-left:22px;margin:0}
+ol.guide li{margin-bottom:12px;color:var(--muted)}
+ol.guide li strong{color:var(--ink)}
+dl.howto{margin:0}
+dl.howto dt{font-weight:600;margin-top:16px}
+dl.howto dd{margin:4px 0 0;color:var(--text-muted)}
+code{font-family:var(--mono);font-size:.92em;background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px}
+.section-title{font-size:18px;font-weight:600;margin:0 0 14px}
+p.lede{color:var(--text-muted);font-size:16px}
+
+footer{padding:60px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted)}
+footer .name{color:var(--ink);font-weight:600}footer p+p{margin-top:10px}
 @media (max-width: 560px) {
-  header.hero h1 { font-size: 44px; }
-  header.hero p { font-size: 18px; }
-  .proof-grid { grid-template-columns: 1fr; }
+  .hero{padding:56px 0 24px}
+  section{padding:60px 0}
+  .card{padding:18px}
+  .proof-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
-<header class="hero">
-  <img src="logo.svg" alt="Forge logo" width="72" height="72" style="display:block;margin:0 auto 16px">
-  <h1>Forge</h1>
-  <p>A deterministic, headless-testable 2D game engine where the same seed always replays the exact same world.</p>
-</header>
+<noscript><div class="wrap" style="padding:40px 28px;color:#6a6d78">Forge is a from-scratch, dependency-free 2D game engine in pure Rust std by Pavan Nallamothu. It has an ECS, a fixed-timestep loop, semi-implicit Euler physics, swept collision, and a headless core. Same seed plus same steps hashes to the same world, every run. Source: <a href="https://github.com/pavanchow/forge">github.com/pavanchow/forge</a>.</div></noscript>
 
-<main class="wrap">
+<nav><div class="row">
+  <div class="brand"><span class="gem"></span>Forge</div>
+  <div class="links"><a href="#sim">Playground</a><a href="#hood">Under the hood</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/forge">GitHub</a></div>
+</div></nav>
 
-  <section class="card">
+<div class="hero">
+  <img src="logo.svg" alt="Forge logo" width="72" height="72">
+  <p class="eyebrow">Rust · deterministic 2D game engine</p>
+  <h1>Same seed,<br>same world, every run.</h1>
+  <p class="sub">Forge is a from-scratch, dependency-free 2D game engine in pure Rust std. It has an entity component system, a fixed-timestep loop, semi-implicit Euler physics, swept collision, and a headless core. A whole run collapses to one world-state hash, so a bug at step 4000 replays on demand and a regression shows up as a changed number, not a flaky pixel diff. Run the browser twin, then replay from the seed and watch the hash come back.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="#sim">Open the playground</a>
+    <a class="btn" href="https://github.com/pavanchow/forge">View on GitHub</a>
+  </div>
+</div>
+
+<details class="howto">
+  <summary>How to use this playground</summary>
+  <p class="sub">Every control explained, plus a short guided tour that shows what determinism means and why it matters.</p>
+
+  <div class="section-title">Guided tour</div>
+  <ol class="guide">
+    <li>Press <strong>Start</strong> to run the simulation. Balls fall under gravity, bounce off the walls, and collide with each other.</li>
+    <li>Watch the <strong>world-state hash</strong> readout. It is a fingerprint of every ball position and velocity, and it changes on every step.</li>
+    <li>Type a seed like <code>42</code> into the Seed box and press <strong>Replay from seed</strong>. The scene resets to the exact same starting layout.</li>
+    <li>Let it run to some step number, note the hash, then press <strong>Replay from seed</strong> again. At the same step you will see the same hash reappear. That is determinism: same seed plus same number of steps gives the identical world, every single time.</li>
+    <li>For hard proof press <strong>Run proof</strong>. It runs the world to step K, resets from the seed, runs to K again, and shows both hashes with a green MATCH badge.</li>
+  </ol>
+
+  <div class="section-title" style="margin-top:26px">What every control does</div>
+  <dl class="howto">
+    <dt>Start / Pause</dt>
+    <dd>Toggles the fixed-timestep loop. While paused the world holds its exact state.</dd>
+    <dt>Step once</dt>
+    <dd>Advances the simulation by a single fixed step. Handy for watching the hash change one step at a time.</dd>
+    <dt>Seed</dt>
+    <dd>The number that feeds the seeded random generator. The same seed produces the same starting positions, sizes, colors, and velocities.</dd>
+    <dt>Replay from seed</dt>
+    <dd>Rebuilds the world from the current seed and entity count, resetting the step counter to zero. This is the core determinism demo.</dd>
+    <dt>Spawn 10</dt>
+    <dd>Adds ten more balls, placed with the seeded generator so the additions stay reproducible.</dd>
+    <dt>Entities</dt>
+    <dd>How many balls a replay or reset creates. Change it, then press Replay from seed to apply.</dd>
+    <dt>Gravity</dt>
+    <dd>Downward acceleration in pixels per second squared. It applies live and also becomes part of the reproducible run.</dd>
+    <dt>Reset</dt>
+    <dd>Clears the world back to an empty, stopped state at step zero.</dd>
+    <dt>Run proof</dt>
+    <dd>The automated determinism check described in the tour. MATCH means the engine is deterministic for this seed and step count.</dd>
+  </dl>
+
+  <div class="section-title" style="margin-top:26px">Why determinism matters</div>
+  <p class="lede">A deterministic engine replays a run exactly from a seed and a step count, so a bug that appears at step 4000 can be reproduced on demand instead of chased by luck. It makes the simulation headless-testable, because a test can step the world and assert on a single hash rather than eyeballing pixels. It also keeps the simulation frame-rate independent, since the fixed-timestep accumulator steps the same slices whether your machine runs at 30 or 144 frames per second.</p>
+</details>
+
+<div class="stage" id="sim"><div class="card">
     <h2>Live playground</h2>
     <p class="sub">A from-scratch JavaScript mirror of Forge's ECS and fixed-timestep physics running in your browser.</p>
 
@@ -353,73 +258,44 @@ details.pg > summary + * { margin-top: 20px; }
       </div>
       <span id="proofVerdict" class="verdict idle">Awaiting run</span>
     </div>
-  </section>
+</div></div>
 
-  <section class="card">
-    <details class="pg">
-    <summary>How to use this playground</summary>
-    <p class="sub">Every control explained, plus a short guided tour that shows what determinism means and why it matters.</p>
+<section id="hood"><div class="wrap">
+  <h2>What runs under the hood</h2>
+  <p class="lead">The same ideas the Rust engine is built on, reimplemented here for teaching. Rendering sits behind a trait so the core never needs a screen, time advances in fixed slices so the result never depends on frame rate, and randomness lives inside the world state, so five correctness gates (deterministic replay, serialize round trip, collision correctness, adversarial hardening, and rollback reproduction) run headless in CI on every push.</p>
+  <div style="max-width:680px;margin:26px auto 0">
+  <dl class="howto">
+    <dt>Seeded PRNG</dt>
+    <dd>A SplitMix64 generator using 64-bit BigInt math. The same seed yields the identical sequence, so scene generation is reproducible.</dd>
+    <dt>Tiny ECS</dt>
+    <dd>Entities are integer ids. Positions, velocities, radii, and colors are parallel component arrays indexed by id. Systems iterate strictly in id order so results never depend on iteration luck.</dd>
+    <dt>Fixed-timestep loop</dt>
+    <dd>Real frame time feeds an accumulator that is drained in fixed <code>dt = 1/120</code> second slices, so the physics is frame-rate independent.</dd>
+    <dt>Semi-implicit Euler physics</dt>
+    <dd>Each step applies <code>v += gravity * dt</code> then <code>pos += v * dt</code>, with wall bounds and restitution.</dd>
+    <dt>Circle collision</dt>
+    <dd>Pairwise circle-circle detection with positional correction and an impulse response, resolved in deterministic id order.</dd>
+    <dt>World-state hash</dt>
+    <dd>After every step, all positions and velocities are quantized to fixed integers and folded with FNV-1a into a stable 32-bit fingerprint.</dd>
+  </dl>
+  </div>
+</div></section>
 
-    <div class="section-title">Guided tour</div>
-    <ol class="guide">
-      <li>Press <strong>Start</strong> to run the simulation. Balls fall under gravity, bounce off the walls, and collide with each other.</li>
-      <li>Watch the <strong>world-state hash</strong> readout. It is a fingerprint of every ball position and velocity, and it changes on every step.</li>
-      <li>Type a seed like <code>42</code> into the Seed box and press <strong>Replay from seed</strong>. The scene resets to the exact same starting layout.</li>
-      <li>Let it run to some step number, note the hash, then press <strong>Replay from seed</strong> again. At the same step you will see the same hash reappear. That is determinism: same seed plus same number of steps gives the identical world, every single time.</li>
-      <li>For hard proof press <strong>Run proof</strong>. It runs the world to step K, resets from the seed, runs to K again, and shows both hashes with a green MATCH badge.</li>
-    </ol>
+<section id="use"><div class="wrap">
+  <h2>Use it</h2>
+  <pre class="termi"><span class="cm"># run the headless engine and its self-check</span>
+cargo run --release --bin forge -- --seed 42 --steps 600 --balls 40
 
-    <div class="section-title" style="margin-top:26px">What every control does</div>
-    <dl class="howto">
-      <dt>Start / Pause</dt>
-      <dd>Toggles the fixed-timestep loop. While paused the world holds its exact state.</dd>
-      <dt>Step once</dt>
-      <dd>Advances the simulation by a single fixed step. Handy for watching the hash change one step at a time.</dd>
-      <dt>Seed</dt>
-      <dd>The number that feeds the seeded random generator. The same seed produces the same starting positions, sizes, colors, and velocities.</dd>
-      <dt>Replay from seed</dt>
-      <dd>Rebuilds the world from the current seed and entity count, resetting the step counter to zero. This is the core determinism demo.</dd>
-      <dt>Spawn 10</dt>
-      <dd>Adds ten more balls, placed with the seeded generator so the additions stay reproducible.</dd>
-      <dt>Entities</dt>
-      <dd>How many balls a replay or reset creates. Change it, then press Replay from seed to apply.</dd>
-      <dt>Gravity</dt>
-      <dd>Downward acceleration in pixels per second squared. It applies live and also becomes part of the reproducible run.</dd>
-      <dt>Reset</dt>
-      <dd>Clears the world back to an empty, stopped state at step zero.</dd>
-      <dt>Run proof</dt>
-      <dd>The automated determinism check described in the tour. MATCH means the engine is deterministic for this seed and step count.</dd>
-    </dl>
+<span class="cm"># the five correctness gates, scale the fuzzing with an env knob</span>
+cargo test
+FORGE_FUZZ_OPS=200 cargo test
+cargo clippy --all-targets -- -D warnings</pre>
+</div></section>
 
-    <div class="section-title" style="margin-top:26px">Why determinism matters</div>
-    <p class="lede">A deterministic engine replays a run exactly from a seed and a step count, so a bug that appears at step 4000 can be reproduced on demand instead of chased by luck. It makes the simulation headless-testable, because a test can step the world and assert on a single hash rather than eyeballing pixels. It also keeps the simulation frame-rate independent, since the fixed-timestep accumulator steps the same slices whether your machine runs at 30 or 144 frames per second.</p>
-    </details>
-  </section>
-
-  <section class="card">
-    <h2>What is running under the hood</h2>
-    <p class="sub">The same ideas the Rust engine is built on, reimplemented here for teaching.</p>
-    <dl class="howto">
-      <dt>Seeded PRNG</dt>
-      <dd>A SplitMix64 generator using 64-bit BigInt math. The same seed yields the identical sequence, so scene generation is reproducible.</dd>
-      <dt>Tiny ECS</dt>
-      <dd>Entities are integer ids. Positions, velocities, radii, and colors are parallel component arrays indexed by id. Systems iterate strictly in id order so results never depend on iteration luck.</dd>
-      <dt>Fixed-timestep loop</dt>
-      <dd>Real frame time feeds an accumulator that is drained in fixed <code>dt = 1/120</code> second slices, so the physics is frame-rate independent.</dd>
-      <dt>Semi-implicit Euler physics</dt>
-      <dd>Each step applies <code>v += gravity * dt</code> then <code>pos += v * dt</code>, with wall bounds and restitution.</dd>
-      <dt>Circle collision</dt>
-      <dd>Pairwise circle-circle detection with positional correction and an impulse response, resolved in deterministic id order.</dd>
-      <dt>World-state hash</dt>
-      <dd>After every step, all positions and velocities are quantized to fixed integers and folded with FNV-1a into a stable 32-bit fingerprint.</dd>
-    </dl>
-  </section>
-
-</main>
-
-<footer>
-  <p>Forge is open source. View the code and engine at <a href="https://github.com/pavanchow/forge">github.com/pavanchow/forge</a></p>
-</footer>
+<footer><div class="wrap">
+  <p>Forge is MIT licensed. Source, tests, and the engine are on <a href="https://github.com/pavanchow/forge">GitHub</a>.</p>
+  <p>By <span class="name">Pavan Nallamothu</span>.</p>
+</div></footer>
 
 <script>
 "use strict";
