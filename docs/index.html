@@ -6,6 +6,7 @@
 <title>Forge: a deterministic, dependency-free 2D game engine in Rust</title>
 <meta name="description" content="Forge by Pavan Nallamothu: a from-scratch, dependency-free 2D game engine in pure Rust std. It has an ECS, a fixed-timestep loop, semi-implicit Euler physics, swept collision, and a headless core. Same seed plus same steps hashes to the same world, every run. Drive the browser twin and prove determinism live.">
 <meta name="author" content="Pavan Nallamothu (pavanchow)">
+<meta name="keywords" content="deterministic game engine, 2D game engine, entity component system, ECS, fixed timestep, semi-implicit Euler, swept AABB collision, rollback netcode, headless simulation, seeded PRNG, SplitMix64, world-state hash, Rust, zero dependencies, Pavan Nallamothu, pavanchow">
 <link rel="canonical" href="https://pavanchow.github.io/forge/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
@@ -17,7 +18,7 @@
 <meta name="twitter:title" content="Forge: a deterministic, dependency-free 2D game engine in Rust">
 <meta name="twitter:description" content="A deterministic game engine where a whole run collapses to one hash. Run it, then replay from the seed and watch the hash return.">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Forge","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Forge is a from-scratch, dependency-free 2D game engine in pure Rust std: an entity component system, a fixed-timestep loop, semi-implicit Euler physics, AABB and circle collision with swept resolution, an input and event system, a scene hierarchy, and a headless rendering abstraction. Given a seed and an input script the world evolves identically on every run and hashes to a single number.","url":"https://pavanchow.github.io/forge/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/forge","license":"https://opensource.org/licenses/MIT"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Forge","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Cross-platform","description":"Forge is a from-scratch, dependency-free 2D game engine in pure Rust std: an entity component system, a fixed-timestep loop, semi-implicit Euler physics, AABB and circle collision with swept resolution, an input and event system, a scene hierarchy, and a headless rendering abstraction. Given a seed and an input script the world evolves identically on every run and hashes to a single number.","url":"https://pavanchow.github.io/forge/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/forge","license":"https://opensource.org/licenses/MIT"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
@@ -133,6 +134,21 @@ p.lede{color:var(--text-muted);font-size:16px}
 
 footer{padding:60px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted)}
 footer .name{color:var(--ink);font-weight:600}footer p+p{margin-top:10px}
+
+/* nav version badge + enrichment components */
+nav .links .ver{color:var(--muted);font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:980px;padding:2px 9px}
+.eyebrow-c{display:block;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.prows{max-width:820px;margin:40px auto 0}
+.prows .r{display:grid;grid-template-columns:minmax(150px,1fr) 2fr;gap:12px 36px;padding:22px 0;border-top:1px solid var(--line)}
+.prows .r:first-child{border-top:none}
+.prows .r b{font-size:17px}.prows .r p{color:var(--muted);margin:0}
+@media(max-width:640px){.prows .r{grid-template-columns:1fr;gap:6px}}
+.pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:900px;margin:44px auto 0}
+@media(max-width:640px){.pgrid{grid-template-columns:1fr}}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+.pcard h3{margin:0 0 8px;font-family:var(--mono);font-size:15px;display:flex;align-items:center;gap:10px;color:var(--ink)}
+.pcard p{color:var(--muted);font-size:14.5px;margin:0}
+.ptag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;background:var(--accent-soft);color:var(--accent)}
 @media (max-width: 560px) {
   .hero{padding:56px 0 24px}
   section{padding:60px 0}
@@ -146,7 +162,7 @@ footer .name{color:var(--ink);font-weight:600}footer p+p{margin-top:10px}
 
 <nav><div class="row">
   <div class="brand"><img src="logo.svg" class="brandlogo" alt="" width="22" height="22">Forge</div>
-  <div class="links"><a href="#sim">Playground</a><a href="#hood">Under the hood</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/forge">GitHub</a></div>
+  <div class="links"><a href="#sim">Playground</a><a href="#differs">Different</a><a href="#hood">Under the hood</a><a href="#parts">Building blocks</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/forge">GitHub</a><span class="ver">v0.1.0</span></div>
 </div></nav>
 
 <div class="hero">
@@ -260,6 +276,41 @@ footer .name{color:var(--ink);font-weight:600}footer p+p{margin-top:10px}
     </div>
 </div></div>
 
+<section><div class="wrap">
+  <span class="eyebrow-c">The engine, headless</span>
+  <h2 style="margin-top:16px">A whole run, in one number.</h2>
+  <p class="lead">The playground above is a browser twin. The real Rust engine runs headless from the command line: it plays a scripted scenario from a seed, prints the world-state hash as it goes, then plays the identical scenario again and checks the two runs agree bit for bit.</p>
+  <pre class="termi"><span class="cm">$ forge --seed 42 --steps 600 --balls 40</span>
+Forge headless determinism check
+seed=42 steps=600 balls=40
+
+Run 1 (traced):
+  tick      0  entities   44  hash 0xf32bf346b3ebc51f
+  tick    100  entities   44  hash 0x3dc9906b7cdb578a
+  tick    200  entities   44  hash 0x22478117891999b2
+  tick    300  entities   44  hash 0xc646848c772d378c
+  tick    400  entities   45  hash 0x476f56bfe971b5bd
+  tick    500  entities   45  hash 0xd60b08a455a04bab
+  tick    600  entities   45  hash 0x2ff4b15d6510b88d
+
+Run 1 final hash: 0x2ff4b15d6510b88d
+Run 2 final hash: 0x2ff4b15d6510b88d
+<span class="g">determinism (same seed same hash): PASS</span>
+<span class="g">serialize/restore round-trip:      PASS</span></pre>
+</div></section>
+
+<section id="differs"><div class="wrap">
+  <h2>What makes it different</h2>
+  <p class="lead">Most engines are hard to test because rendering, timing, and randomness are tangled into the core, and floating point results wobble from run to run. Forge inverts each of those choices.</p>
+  <div class="prows">
+    <div class="r"><b>Rendering behind a trait</b><p>The renderer is a trait, so the simulation core never needs a screen. The same world that draws in a window runs headless in CI.</p></div>
+    <div class="r"><b>Fixed timestep</b><p>Real frame time feeds an accumulator drained in fixed <code>1/120</code> second slices, so the physics is identical at 30 or 144 frames per second.</p></div>
+    <div class="r"><b>The seed lives in the world</b><p>Randomness comes from a seeded SplitMix64 generator held inside the world state, so a scene regenerates identically from its seed.</p></div>
+    <div class="r"><b>One run, one hash</b><p>The whole world serializes to a canonical encoding and folds with FNV-1a into a single number, so a regression shows up as a changed hash, not a flaky pixel diff.</p></div>
+    <div class="r"><b>Zero dependencies</b><p>Pure Rust standard library, edition 2021. Nothing to audit, pin, or wait on but the compiler.</p></div>
+  </div>
+</div></section>
+
 <section id="hood"><div class="wrap">
   <h2>What runs under the hood</h2>
   <p class="lead">The same ideas the Rust engine is built on, reimplemented here for teaching. Rendering sits behind a trait so the core never needs a screen, time advances in fixed slices so the result never depends on frame rate, and randomness lives inside the world state, so five correctness gates (deterministic replay, serialize round trip, collision correctness, adversarial hardening, and rollback reproduction) run headless in CI on every push.</p>
@@ -281,8 +332,29 @@ footer .name{color:var(--ink);font-weight:600}footer p+p{margin-top:10px}
   </div>
 </div></section>
 
+<section id="parts"><div class="wrap">
+  <span class="eyebrow-c">The parts that matter</span>
+  <h2 style="margin-top:16px">A game engine core in modules you can read.</h2>
+  <div class="pgrid">
+    <div class="pcard"><h3><span class="ptag">math</span> Vec2, Transform</h3><p>Vector math and a transform with translation, rotation, and scale. The primitives everything else is built on.</p></div>
+    <div class="pcard"><h3><span class="ptag">prng</span> Seeded Rng</h3><p>A SplitMix64 generator. The standard library ships none, so scene generation stays reproducible from a seed.</p></div>
+    <div class="pcard"><h3><span class="ptag">ecs</span> World, Entity</h3><p>Register component types, spawn, insert, remove, and query, iterating in deterministic entity order.</p></div>
+    <div class="pcard"><h3><span class="ptag">physics</span> Semi-implicit Euler</h3><p>Integrate velocities under forces and gravity, then advance positions, in fixed slices.</p></div>
+    <div class="pcard"><h3><span class="ptag">collision</span> Swept AABB</h3><p>Broadphase pairs plus narrowphase, with continuous resolution that stops fast bodies tunneling through thin walls.</p></div>
+    <div class="pcard"><h3><span class="ptag">serialize</span> Encode and hash</h3><p>A canonical binary encoding of the whole world, folded with FNV-1a into a single world-state fingerprint.</p></div>
+    <div class="pcard"><h3><span class="ptag">sim</span> Simulation</h3><p>SimConfig, Command, and the fixed-timestep loop that ties the pieces into one deterministic world.</p></div>
+    <div class="pcard"><h3><span class="ptag">rollback</span> SnapshotRing</h3><p>Record snapshots into a bounded ring and replay forward, the shape rollback-netcode rewinds are built on.</p></div>
+  </div>
+</div></section>
+
 <section id="use"><div class="wrap">
   <h2>Use it</h2>
+  <p class="lead">Drive it from the command line, embed it as a crate, or run the correctness gates yourself.</p>
+  <div class="prows">
+    <div class="r"><b>CLI</b><p><code>forge --seed N --steps N --balls N</code> plays a scripted headless scenario and prints world-state hashes as it runs, then re-runs it to prove determinism.</p></div>
+    <div class="r"><b>Library API</b><p><code>Simulation::new(config, seed)</code>, <code>seed_scene</code>, <code>run</code>, and <code>hash</code> drive a world; <code>serialize</code> / <code>deserialize</code> snapshot it; and <code>SnapshotRing</code> with <code>replay_to</code> rewinds it.</p></div>
+    <div class="r"><b>Correctness gates</b><p>Five properties run as tests: deterministic replay, serialize round trip, collision correctness, adversarial hardening, and rollback reproduction, with the fuzzing workload scaled by <code>FORGE_FUZZ_OPS</code>.</p></div>
+  </div>
   <pre class="termi"><span class="cm"># run the headless engine and its self-check</span>
 cargo run --release --bin forge -- --seed 42 --steps 600 --balls 40
 
