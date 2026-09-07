@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <title>Forge</title>
 <style>
 /* Base light-mode rule. Light variables and body background/color live here FIRST. */
@@ -259,6 +260,24 @@ footer {
 }
 footer a { color: var(--accent); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
+details.pg > summary {
+  cursor: pointer;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+details.pg > summary::-webkit-details-marker { display: none; }
+details.pg > summary::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 20px;
+}
+details.pg[open] > summary::before { content: "▾"; }
+details.pg > summary + * { margin-top: 20px; }
 @media (max-width: 560px) {
   header.hero h1 { font-size: 44px; }
   header.hero p { font-size: 18px; }
@@ -268,6 +287,7 @@ footer a:hover { text-decoration: underline; }
 </head>
 <body>
 <header class="hero">
+  <img src="logo.svg" alt="Forge logo" width="72" height="72" style="display:block;margin:0 auto 16px">
   <h1>Forge</h1>
   <p>A deterministic, headless-testable 2D game engine where the same seed always replays the exact same world.</p>
 </header>
@@ -336,7 +356,8 @@ footer a:hover { text-decoration: underline; }
   </section>
 
   <section class="card">
-    <h2>How to use this playground</h2>
+    <details class="pg">
+    <summary>How to use this playground</summary>
     <p class="sub">Every control explained, plus a short guided tour that shows what determinism means and why it matters.</p>
 
     <div class="section-title">Guided tour</div>
@@ -372,6 +393,7 @@ footer a:hover { text-decoration: underline; }
 
     <div class="section-title" style="margin-top:26px">Why determinism matters</div>
     <p class="lede">A deterministic engine replays a run exactly from a seed and a step count, so a bug that appears at step 4000 can be reproduced on demand instead of chased by luck. It makes the simulation headless-testable, because a test can step the world and assert on a single hash rather than eyeballing pixels. It also keeps the simulation frame-rate independent, since the fixed-timestep accumulator steps the same slices whether your machine runs at 30 or 144 frames per second.</p>
+    </details>
   </section>
 
   <section class="card">

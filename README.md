@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" alt="Forge logo" width="96">
+
 # Forge
 
 A from-scratch, dependency-free 2D game engine in pure Rust, built around one

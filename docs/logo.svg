@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Forge logo">
+  <defs>
+    <linearGradient id="fgT" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3a9bff"/>
+      <stop offset="1" stop-color="#0062d6"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#fgT)"/>
+  <g fill="#fff">
+    <path d="M18 55 L32 45 L32 60 Z"/>
+    <rect x="30" y="44" width="70" height="16" rx="4"/>
+    <path d="M54 60 L76 60 L69 78 L61 78 Z"/>
+    <path d="M46 78 L84 78 L94 94 L36 94 Z"/>
+  </g>
+</svg>
