@@ -211,7 +211,10 @@ fn rollback_check(seed: u64, balls: u32, steps: u64) -> bool {
     let mut ring = SnapshotRing::new(40);
     let mut probe = sim;
     loop {
-        let next_tick = probe.tick + interval;
+        // Clamp the last advance to `steps` so the final snapshot lands exactly
+        // at `steps`; otherwise, when `interval` does not divide `steps`, the
+        // loop overshoots and `original` is captured past the replay endpoint.
+        let next_tick = (probe.tick + interval).min(steps);
         replay_to(&mut probe, next_tick, &script);
         ring.record(&probe);
         if probe.tick >= steps {
