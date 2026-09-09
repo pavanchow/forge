@@ -3,25 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forge: a deterministic, dependency-free 2D game engine in Rust</title>
-<meta name="description" content="Forge by Pavan Nallamothu: a from-scratch, dependency-free 2D game engine in pure Rust std. It has an ECS, a fixed-timestep loop, semi-implicit Euler physics, swept collision, and a headless core. Same seed plus same steps hashes to the same world, every run. Drive the browser twin and prove determinism live.">
-<meta name="author" content="Pavan Nallamothu (pavanchow)">
-<meta name="keywords" content="deterministic game engine, 2D game engine, entity component system, ECS, fixed timestep, semi-implicit Euler, swept AABB collision, rollback netcode, headless simulation, seeded PRNG, SplitMix64, world-state hash, Rust, zero dependencies, Pavan Nallamothu, pavanchow">
+<title>Forge: 2D game engine in Rust | Pavan Nallamothu</title>
+<meta name="description" content="Forge is a deterministic, dependency-free 2D game engine in Rust: an ECS, fixed-timestep physics, swept collision, and a headless core. By Pavan Nallamothu.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="author" content="Pavan Nallamothu">
+<meta name="keywords" content="Forge, 2D game engine in Rust, deterministic game engine, entity component system, ECS, fixed timestep, semi-implicit Euler, swept AABB collision, rollback netcode, headless simulation, seeded PRNG, SplitMix64, world-state hash, game engine from scratch, zero dependencies, Pavan Nallamothu, pavanchow">
 <link rel="canonical" href="https://pavanchow.github.io/forge/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Forge: a deterministic, dependency-free 2D game engine in Rust">
-<meta property="og:description" content="A from-scratch 2D game engine in pure Rust std: ECS, fixed-timestep physics, swept collision, headless core. Same seed replays the exact same world. By Pavan Nallamothu.">
+<meta property="og:site_name" content="Pavan Nallamothu">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Forge: 2D game engine in Rust | Pavan Nallamothu">
+<meta property="og:description" content="A from-scratch 2D game engine in pure Rust std: ECS, fixed-timestep physics, swept collision, headless core. Same seed replays the exact same world.">
 <meta property="og:url" content="https://pavanchow.github.io/forge/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Forge: a deterministic, dependency-free 2D game engine in Rust">
-<meta name="twitter:description" content="A deterministic game engine where a whole run collapses to one hash. Run it, then replay from the seed and watch the hash return.">
+<meta property="og:image" content="https://pavanchow.github.io/forge/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Forge by Pavan Nallamothu">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Forge: 2D game engine in Rust | Pavan Nallamothu">
+<meta name="twitter:description" content="A deterministic 2D game engine in Rust where a whole run collapses to one world-state hash. Same seed, same world, every run. By Pavan Nallamothu.">
+<meta name="twitter:image" content="https://pavanchow.github.io/forge/og-image.png">
+<meta name="twitter:creator" content="@pavanchow">
+<meta name="twitter:site" content="@pavanchow">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Forge","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Cross-platform","description":"Forge is a from-scratch, dependency-free 2D game engine in pure Rust std: an entity component system, a fixed-timestep loop, semi-implicit Euler physics, AABB and circle collision with swept resolution, an input and event system, a scene hierarchy, and a headless rendering abstraction. Given a seed and an input script the world evolves identically on every run and hashes to a single number.","url":"https://pavanchow.github.io/forge/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/forge","license":"https://opensource.org/licenses/MIT"}
-</script>
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+{"@context":"https://schema.org","@graph":[
+{"@type":"SoftwareApplication","name":"Forge","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","softwareVersion":"0.1.0","description":"Forge is a from-scratch, dependency-free 2D game engine in pure Rust std: an entity component system, a fixed-timestep loop, semi-implicit Euler physics, AABB and circle collision with swept resolution, an input and event system, a scene hierarchy, and a headless rendering abstraction. Given a seed and an input script the world evolves identically on every run and hashes to a single number.","url":"https://pavanchow.github.io/forge/","image":"https://pavanchow.github.io/forge/og-image.png","programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/forge","license":"https://opensource.org/licenses/MIT","datePublished":"2026-08-21","author":{"@id":"https://github.com/pavanchow#pavan-nallamothu"},"publisher":{"@id":"https://github.com/pavanchow#pavan-nallamothu"},"keywords":"2D game engine, deterministic simulation, entity component system, fixed timestep, swept collision, seeded PRNG, world-state hash, rollback","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Entity component system with parallel component arrays","Fixed-timestep loop","Semi-implicit Euler physics","Swept AABB and circle collision","Seeded SplitMix64 PRNG held in world state","World-state hashing for deterministic replay","Snapshot ring for rollback","Headless core behind a renderer trait"]},
+{"@type":"Person","@id":"https://github.com/pavanchow#pavan-nallamothu","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","jobTitle":"Software Engineer and Security Researcher","knowsAbout":["Rust","game engines","physics simulation","entity component systems","determinism","collision detection","rollback netcode"],"sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]},
+{"@type":"WebSite","name":"Forge by Pavan Nallamothu","url":"https://pavanchow.github.io/forge/","author":{"@id":"https://github.com/pavanchow#pavan-nallamothu"}},
+{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Pavan Nallamothu","item":"https://github.com/pavanchow"},{"@type":"ListItem","position":2,"name":"Forge","item":"https://pavanchow.github.io/forge/"}]},
+{"@type":"WebPage","url":"https://pavanchow.github.io/forge/","name":"Forge: 2D game engine in Rust | Pavan Nallamothu","isPartOf":{"@id":"https://pavanchow.github.io/forge/"},"about":{"@type":"SoftwareApplication","name":"Forge"},"author":{"@id":"https://github.com/pavanchow#pavan-nallamothu"},"inLanguage":"en"}
+]}
 </script>
 <style>
 :root {
@@ -365,7 +378,16 @@ cargo clippy --all-targets -- -D warnings</pre>
 </div></section>
 
 <footer><div class="wrap">
-  <p>Forge is MIT licensed. Source, tests, and the engine are on <a href="https://github.com/pavanchow/forge">GitHub</a>.</p>
+  <p style="font-weight:600;color:var(--ink);margin-bottom:14px">More open-source tools by Pavan Nallamothu</p>
+  <p style="max-width:720px;margin:0 auto;line-height:1.9">
+    <a href="https://pavanchow.github.io/newton/">Newton, a 2D physics engine from scratch</a> ·
+    <a href="https://pavanchow.github.io/prism/">Prism, a software rasterizer for 3D triangles</a> ·
+    <a href="https://pavanchow.github.io/reverb/">Reverb, audio synthesis with oscillators and an ADSR envelope</a> ·
+    <a href="https://pavanchow.github.io/loom/">Loom, a retained-mode GUI layout engine</a> ·
+    <a href="https://pavanchow.github.io/phantom/">Phantom, a CHIP-8 emulator</a> ·
+    <a href="https://github.com/pavanchow">All projects on GitHub</a>
+  </p>
+  <p style="margin-top:28px">Forge is MIT licensed. Source, tests, and the engine are on <a href="https://github.com/pavanchow/forge">GitHub</a>.</p>
   <p>By <span class="name">Pavan Nallamothu</span>.</p>
 </div></footer>
 
