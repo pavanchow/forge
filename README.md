@@ -6,6 +6,8 @@ Forge is a from-scratch, dependency-free 2D game engine in pure Rust, built arou
 
 **[Live demo](https://pavanchow.github.io/forge/)** · MIT licensed · pure Rust
 
+Built from scratch by [Pavan Nallamothu](https://pavanchow.github.io/) ([LinkedIn](https://www.linkedin.com/in/pavanchow/), [GitHub](https://github.com/pavanchow)).
+
 ## What it is
 
 Forge is a compact but complete game engine core. It has an entity component
